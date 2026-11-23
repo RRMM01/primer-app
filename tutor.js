@@ -292,7 +292,47 @@
     "exam-nmat-perceptual-acuity": { prereqs: ["abs-rotations-reflections"], tier: 3, elo: 1400, tag: "exam_mastery" },
     "exam-nmat-social-science-psych-soc": { prereqs: ["persdev-self-whole-person"], tier: 3, elo: 1410, tag: "exam_mastery" },
     "exam-cse-ra6713-civics-env-laws": { prereqs: ["ph-constitution-three-branches"], tier: 3, elo: 1370, tag: "exam_mastery" },
-    "exam-cse-clerical-filing-vocabulary": { prereqs: ["verbal-analogies-vocab"], tier: 3, elo: 1340, tag: "exam_mastery" }
+    "exam-cse-clerical-filing-vocabulary": { prereqs: ["verbal-analogies-vocab"], tier: 3, elo: 1340, tag: "exam_mastery" },
+
+    // Deep Equations & Formulas Expansion: Advanced Math (+8), Physics (+7), Chemistry (+7), Biology (+6) & Science (+6)
+    "math-parametric-polar-curves": { prereqs: ["trig-unit-circle", "conics-distance-circles"], tier: 4, elo: 1480, tag: "trig_geometry" },
+    "math-number-theory-diophantine-modular": { prereqs: ["primes-factors-lcm", "discrete-logic-mod"], tier: 4, elo: 1490, tag: "number_sense" },
+    "math-hyperbolic-euler-complex": { prereqs: ["complex-imaginary-i", "math-parametric-polar-curves", "derivatives-speedometer"], tier: 5, elo: 1620, tag: "calculus" },
+    "math-taylor-maclaurin-power-series": { prereqs: ["derivatives-speedometer", "sequences-sigma", "limits-potholes"], tier: 5, elo: 1660, tag: "calculus" },
+    "math-differential-equations-models": { prereqs: ["integrals-area", "calc3-partials-ode"], tier: 5, elo: 1690, tag: "calculus" },
+    "math-eigenvalues-svd-orthogonality": { prereqs: ["linear-algebra-vectors", "matrices-3d-transformations"], tier: 5, elo: 1670, tag: "algebra_factoring" },
+    "math-vector-calculus-grad-div-curl": { prereqs: ["calc3-partials-ode", "math-vectors-3d-dot-cross"], tier: 5, elo: 1720, tag: "calculus" },
+    "math-probability-distributions-clt": { prereqs: ["probability-bayes", "stats-normal-curve", "math-binomial-pascal-series-formulas"], tier: 5, elo: 1610, tag: "fractions_percents" },
+
+    "physics-wave-optics-interference-diffraction": { prereqs: ["physics-optics-magnetism", "physics-mirrors-lenses-concave-convex"], tier: 4, elo: 1540, tag: "physics" },
+    "physics-elasticity-stress-strain-materials": { prereqs: ["physics-newton-forces", "physics-thermo-fluids"], tier: 4, elo: 1480, tag: "physics" },
+    "physics-heat-transfer-radiation-blackbody": { prereqs: ["physics-thermo-four-laws-engines"], tier: 4, elo: 1520, tag: "physics" },
+    "physics-rc-rl-rlc-circuits-impedance": { prereqs: ["phys2-capacitors-dielectrics", "phys2-kirchhoff-circuits", "physics-faraday-induction-ac-maxwell"], tier: 5, elo: 1640, tag: "physics" },
+    "physics-special-relativity-lorentz-energy": { prereqs: ["physics-modern-relativity", "physics-energy-momentum"], tier: 5, elo: 1660, tag: "physics" },
+    "physics-quantum-debroglie-heisenberg-bohr": { prereqs: ["physics-quantum-photoelectric-nuclear", "physics-modern-relativity"], tier: 5, elo: 1680, tag: "physics" },
+    "physics-fluid-viscosity-poiseuille-reynolds": { prereqs: ["physics-fluids-buoyancy-bernoulli"], tier: 4, elo: 1560, tag: "physics" },
+
+    "chem-buffers-titration-henderson": { prereqs: ["chem-acids-bases-ph", "chem-equilibrium-redox-kinetics"], tier: 4, elo: 1550, tag: "chemistry" },
+    "chem-electrochemistry-nernst-faraday": { prereqs: ["chem-equilibrium-redox-kinetics", "chem2-thermo-entropy-gibbs"], tier: 5, elo: 1620, tag: "chemistry" },
+    "chem-solubility-ksp-common-ion": { prereqs: ["chem-equilibrium-redox-kinetics", "chem2-solutions-concentration"], tier: 4, elo: 1540, tag: "chemistry" },
+    "chem-hess-calorimetry-bond-enthalpy": { prereqs: ["chem-gas-thermo-organic", "chem2-thermo-entropy-gibbs"], tier: 4, elo: 1510, tag: "chemistry" },
+    "chem-arrhenius-integrated-rate-laws": { prereqs: ["chem2-kinetics-ratelaw", "logarithms-unlocked"], tier: 5, elo: 1600, tag: "chemistry" },
+    "chem-real-gases-dalton-graham": { prereqs: ["chem-gas-thermo-organic", "chem2-imf-phases"], tier: 4, elo: 1520, tag: "chemistry" },
+    "chem-spectroscopy-beer-lambert-nuclear": { prereqs: ["chem2-solutions-concentration", "physics-quantum-photoelectric-nuclear"], tier: 4, elo: 1530, tag: "chemistry" },
+
+    "bio-hardy-weinberg-population-genetics": { prereqs: ["bio-mitosis-meiosis-genetics", "bio2-evolution-mechanisms"], tier: 4, elo: 1510, tag: "biology" },
+    "bio-enzyme-kinetics-michaelis-menten": { prereqs: ["bio-macromolecules-enzymes", "chem2-kinetics-ratelaw"], tier: 5, elo: 1590, tag: "biology" },
+    "bio-water-potential-nernst-neurophysiology": { prereqs: ["bio-osmosis-transport", "bio-human-physiology", "chem2-colligative-properties"], tier: 5, elo: 1600, tag: "biology" },
+    "bio-ecology-population-growth-energy": { prereqs: ["bio-evolution-ecology", "bio-energy-photosynthesis"], tier: 4, elo: 1450, tag: "biology" },
+    "bio-immunology-vaccines-microbiology": { prereqs: ["bio-human-physiology", "bio-taxonomy-plants-viruses"], tier: 4, elo: 1470, tag: "biology" },
+    "bio-cardiorespiratory-renal-physiology": { prereqs: ["bio-human-physiology", "bio2-plant-animal-systems"], tier: 4, elo: 1520, tag: "biology" },
+
+    "sci-astrophysics-luminosity-hubble-parallax": { prereqs: ["exam-astronomy-stars-cosmos", "physics-universal-gravitation-kepler"], tier: 4, elo: 1530, tag: "earth_space" },
+    "sci-radiometric-dating-seismology-richter": { prereqs: ["earth-geologic-time-fossils", "earth-volcanoes-earthquakes-hazards"], tier: 4, elo: 1470, tag: "earth_space" },
+    "sci-oceanography-atmospheric-lapse-coriolis": { prereqs: ["earth-atmosphere-typhoons-monsoons", "earth-moon-phases-seasons-tides"], tier: 4, elo: 1460, tag: "earth_space" },
+    "sci-measurement-error-sigfigs-dimensional": { prereqs: ["physics-units-vectors", "ratios-proportions-rates"], tier: 3, elo: 1360, tag: "earth_space" },
+    "sci-energy-balance-albedo-carbon-budget": { prereqs: ["earth-climate-greenhouse-energy", "physics-heat-transfer-radiation-blackbody"], tier: 4, elo: 1500, tag: "earth_space" },
+    "sci-environmental-biogeochemical-ecology-math": { prereqs: ["earth-climate-greenhouse-energy", "bio-ecology-population-growth-energy"], tier: 4, elo: 1440, tag: "earth_space" }
   };
 
   const TAG_LABELS = {

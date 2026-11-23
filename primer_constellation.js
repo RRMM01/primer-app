@@ -1,4 +1,4 @@
-// Primer Studio — Interactive 2D Skill Constellation Map (222-Node Prerequisite Graph)
+// Primer Studio — Interactive 2D Skill Constellation Map (256-Node Prerequisite Graph)
 (function (global) {
   "use strict";
 
@@ -382,7 +382,7 @@
             <div class="pr-co-zoom-grp">
               <button type="button" class="ml-btn-mini" id="pr-co-zout" title="Zoom out">−</button>
               <button type="button" class="ml-btn-mini" id="pr-co-zin" title="Zoom in">+</button>
-              <button type="button" class="ml-btn-mini" id="pr-co-fit" title="Fit all 222 nodes">Fit</button>
+              <button type="button" class="ml-btn-mini" id="pr-co-fit" title="Fit all 256 nodes">Fit</button>
               <button type="button" class="ml-btn-mini" id="pr-co-next" title="Pan to next recommended unlocked skill">Focus Next</button>
             </div>
           </div>

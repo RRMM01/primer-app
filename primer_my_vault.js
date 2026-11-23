@@ -830,7 +830,7 @@ A: Article III">${escapeHtml(ui.importText)}</textarea>
                 : `
               <div class="pr-vault-panel" style="padding:32px; text-align:center;">
                 <h2 class="pr-vault-h2">Your Personal Markdown + LaTeX Notebook</h2>
-                <p class="ml-viz-sub" style="margin:8px auto 16px; max-width:480px;">Write clean formula summaries, attach annotations to any of the 222 lessons, and print them straight to PDF.</p>
+                <p class="ml-viz-sub" style="margin:8px auto 16px; max-width:480px;">Write clean formula summaries, attach annotations to any of the 256 lessons, and print them straight to PDF.</p>
                 <button type="button" class="ml-btn-primary" id="pr-mv-new-note-2">+ Create Your First Note</button>
               </div>
             `

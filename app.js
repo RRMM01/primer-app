@@ -13,6 +13,8 @@
   const WORK_STUDIO = window.PRIMER_WORK_STUDIO;
   const MY_VAULT = window.PRIMER_MY_VAULT;
   const CONSTELLATION = window.PRIMER_CONSTELLATION;
+  const EDGE = window.PRIMER_EDGE;
+  const ONBOARDING = window.PRIMER_ONBOARDING;
   // Expose universal Primer & legacy aliases
   window.PRIMER_DATA = DATA;
   window.EVERYLINGO_DATA = DATA;
@@ -90,7 +92,14 @@
     derivationsSolved: {},
     dailyChecklist: {},
     focusLog: {},
-    focusMinutesTotal: 0
+    focusMinutesTotal: 0,
+    edgeInterleavePreset: "smart",
+    confidenceLog: { sureRight: 0, sureWrong: 0, halfRight: 0, halfWrong: 0, guessRight: 0, guessWrong: 0, illusions: [], luckyHits: [] },
+    feynmanVerified: {},
+    examTarget: { goalId: "auto", label: "", dateIso: "" },
+    edgeStats: { interleaveRuns: 0, interleaveBestPct: 0, interleaveMedianSec: null, feynmanCount: 0 },
+    onboardingCompleted: false,
+    studioConfig: null
   };
 
   let storageAvailable = (function () {
@@ -106,7 +115,11 @@
 
   let state = loadState();
   if (TUTOR) TUTOR.ensureTelemetry(state);
+  if (EDGE) EDGE.ensureEdgeState(state);
+  if (ONBOARDING) ONBOARDING.ensureStudioConfig(state);
   let pendingExternalSprint = null;
+  let pendingBootEdgeAction = null;
+  let pendingBootIntro = false;
   let activeProcSynth = null;
   let synthFeedbackMap = {};
 
@@ -179,10 +192,18 @@
       });
     }
     try {
-      const urlTab = new URLSearchParams(window.location.search).get("tab");
+      const qsParams = new URLSearchParams(window.location.search);
+      const urlTab = qsParams.get("tab");
       const allowedTabs = ["path", "constellation", "work", "exam", "forge", "myvault", "tutor", "memorize", "gym", "lab", "traps", "cheatsheet"];
       if (urlTab && allowedTabs.includes(urlTab)) {
         state.activeTab = urlTab;
+      }
+      const urlEdge = qsParams.get("edge");
+      if (urlEdge === "interleave" || urlEdge === "feynman" || urlEdge === "illusions") {
+        pendingBootEdgeAction = urlEdge;
+      }
+      if (qsParams.get("intro") === "1" || qsParams.get("setup") === "1") {
+        pendingBootIntro = true;
       }
     } catch (_e) {}
   }
@@ -763,6 +784,40 @@
     if (state.paperTheme === "carbon") document.body.classList.add("theme-carbon");
     else if (state.paperTheme === "kyoto") document.body.classList.add("paper-kyoto");
     else if (state.paperTheme === "monochrome") document.body.classList.add("theme-monochrome");
+    if (ONBOARDING && typeof ONBOARDING.applyStudioConfigToDom === "function") {
+      ONBOARDING.applyStudioConfigToDom(state);
+    }
+  }
+
+  function openStudioIntro(startStep, isResetFlow) {
+    if (!ONBOARDING || typeof ONBOARDING.openIntroStudio !== "function") return;
+    ONBOARDING.openIntroStudio({
+      state,
+      DATA,
+      EDGE,
+      BUILD,
+      renderStudioMarkSvg,
+      applyThemeClass,
+      startStep: startStep || "hero",
+      isResetFlow: !!isResetFlow,
+      onOpenBackup: () => {
+        session = { mode: "backup", phase: "backup", statusMsg: "", confirmReset: false };
+        renderModal();
+      },
+      onComplete: () => {
+        const sc = ONBOARDING.ensureStudioConfig(state);
+        if (sc.defaultFocusMin && !focusTimer.running) {
+          focusTimer.presetMin = sc.defaultFocusMin;
+          focusTimer.isBreak = false;
+          focusTimer.remainingSec = sc.defaultFocusMin * 60;
+        }
+        if (EDGE && EDGE.AudioFocus && sc.defaultAudioMode && sc.defaultAudioMode !== "off") {
+          EDGE.AudioFocus.setMode(sc.defaultAudioMode);
+        }
+        saveState();
+        renderApp();
+      }
+    });
   }
 
   function renderTopBar() {
@@ -772,6 +827,9 @@
     const dStreak = Math.max(1, state.dailyStreak || state.streak || 1);
     const pageTitle = TAB_TITLES[state.activeTab] || "Main Dashboard";
     const shortTitle = TAB_SHORT_TITLES[state.activeTab] || "Studio";
+
+    const sc = ONBOARDING ? ONBOARDING.ensureStudioConfig(state) : null;
+    const showTopMetrics = !sc || sc.widgets.topbarMetrics !== false;
 
     topbar.innerHTML = `
       <div class="ml-topbar-left">
@@ -792,29 +850,37 @@
             <strong id="ml-focus-time-top">${formatFocusMMSS(focusTimer.remainingSec)}</strong>
           </button>
         ` : ""}
-        <div class="ml-metrics-capsule" role="group" aria-label="Study metrics">
-          <div class="ml-metric-item streak" title="Daily Study Streak${state.streakFreezes ? ` (${state.streakFreezes} Freeze ready)` : ""}">
-            <span class="ml-metric-ico">${UI_ICONS.flame}</span>
-            <strong>${dStreak}</strong>
+        ${showTopMetrics ? `
+          <div class="ml-metrics-capsule" role="group" aria-label="Study metrics">
+            <div class="ml-metric-item streak" title="Daily Study Streak${state.streakFreezes ? ` (${state.streakFreezes} Freeze ready)` : ""}">
+              <span class="ml-metric-ico">${UI_ICONS.flame}</span>
+              <strong>${dStreak}</strong>
+            </div>
+            <div class="ml-metric-item xp" title="Experience Points">
+              <span class="ml-metric-ico">${UI_ICONS.star}</span>
+              <strong>${state.xp}</strong>
+            </div>
+            <div class="ml-metric-item gems" title="Studio Gems">
+              <span class="ml-metric-ico">${UI_ICONS.gem}</span>
+              <strong>${state.gems}</strong>
+            </div>
+            <button type="button" id="ml-shop-btn" class="ml-capsule-add-btn" title="Open Studio Shop (Themes, Emblem Marks, Freezes, Hearts)" aria-label="Open Studio Shop">
+              ${UI_ICONS.plus}
+            </button>
           </div>
-          <div class="ml-metric-item xp" title="Experience Points">
-            <span class="ml-metric-ico">${UI_ICONS.star}</span>
-            <strong>${state.xp}</strong>
-          </div>
-          <div class="ml-metric-item gems" title="Studio Gems">
-            <span class="ml-metric-ico">${UI_ICONS.gem}</span>
-            <strong>${state.gems}</strong>
-          </div>
-          <button type="button" id="ml-shop-btn" class="ml-capsule-add-btn" title="Open Studio Shop (Themes, Emblem Marks, Freezes, Hearts)" aria-label="Open Studio Shop">
-            ${UI_ICONS.plus}
-          </button>
-        </div>
+        ` : ""}
 
         <button type="button" id="ml-global-search-btn" class="ml-top-search-btn" title="Instant Search across lessons, formulas, playgrounds & traps (Ctrl+K or /)">
           <span class="ml-search-ico">${UI_ICONS.search}</span>
           <span class="ml-search-placeholder">Search</span>
           <kbd class="ml-kbd-hint">⌘K</kbd>
         </button>
+
+        ${ONBOARDING ? `
+          <button type="button" id="ml-studio-setup-btn" class="ml-profile-btn pr-setup-top-btn" title="Customize Studio (Clean Zen ↔ Max Command Center, Themes, Widgets & Intro)">
+            <span class="ml-profile-avatar">✦</span>
+          </button>
+        ` : ""}
 
         <button type="button" id="ml-backup-btn" class="ml-profile-btn" title="${storageAvailable ? `Mastered ${stats.masteredCount}/${stats.totalNodes} · Backup, Save Code & Reset` : "LocalStorage restricted here — open Save Code backup"}">
           <span class="ml-profile-avatar">${UI_ICONS.user}</span>
@@ -841,11 +907,22 @@
       });
     }
 
-    document.getElementById("ml-shop-btn").addEventListener("click", () => {
-      AudioFX.playTap();
-      session = { mode: "shop", phase: "shop", statusMsg: "" };
-      renderModal();
-    });
+    const shopTopBtn = document.getElementById("ml-shop-btn");
+    if (shopTopBtn) {
+      shopTopBtn.addEventListener("click", () => {
+        AudioFX.playTap();
+        session = { mode: "shop", phase: "shop", statusMsg: "" };
+        renderModal();
+      });
+    }
+
+    const setupTopBtn = document.getElementById("ml-studio-setup-btn");
+    if (setupTopBtn && ONBOARDING) {
+      setupTopBtn.addEventListener("click", () => {
+        AudioFX.playTap();
+        openStudioIntro("config", false);
+      });
+    }
 
     document.getElementById("ml-global-search-btn").addEventListener("click", () => {
       AudioFX.playTap();
@@ -929,14 +1006,24 @@
         </button>
       `;
 
+      const scNav = ONBOARDING ? ONBOARDING.ensureStudioConfig(state) : null;
+      const hiddenTabs = new Set((scNav && scNav.hiddenTabs) || []);
+      const visPrimary = primaryTabs.filter((t) => t.id === "path" || !hiddenTabs.has(t.id));
+      const visPractice = practiceTabs.filter((t) => !hiddenTabs.has(t.id));
+      const visSecondary = secondaryTabs.filter((t) => !hiddenTabs.has(t.id));
+
       nav.innerHTML = `
-        <div class="ml-nav-group">${primaryTabs.map(renderItem).join("")}</div>
-        <div class="ml-nav-divider" aria-hidden="true"></div>
-        <div class="ml-nav-section-lbl">Practice</div>
-        <div class="ml-nav-group">${practiceTabs.map(renderItem).join("")}</div>
-        <div class="ml-nav-divider" aria-hidden="true"></div>
-        <div class="ml-nav-section-lbl">Resources</div>
-        <div class="ml-nav-group">${secondaryTabs.map(renderItem).join("")}</div>
+        <div class="ml-nav-group">${visPrimary.map(renderItem).join("")}</div>
+        ${visPractice.length ? `
+          <div class="ml-nav-divider" aria-hidden="true"></div>
+          <div class="ml-nav-section-lbl">Practice</div>
+          <div class="ml-nav-group">${visPractice.map(renderItem).join("")}</div>
+        ` : ""}
+        ${visSecondary.length ? `
+          <div class="ml-nav-divider" aria-hidden="true"></div>
+          <div class="ml-nav-section-lbl">Resources</div>
+          <div class="ml-nav-group">${visSecondary.map(renderItem).join("")}</div>
+        ` : ""}
       `;
 
       nav.querySelectorAll(".ml-nav-btn").forEach((btn) => {
@@ -963,7 +1050,10 @@
     if (foot) {
       const todayIso = getTodayIso();
       const focusToday = (state.focusLog && state.focusLog[todayIso]) || 0;
+      const scFoot = ONBOARDING ? ONBOARDING.ensureStudioConfig(state) : null;
+      const showFocusWidget = !scFoot || scFoot.widgets.focusWidget !== false;
       foot.innerHTML = `
+        ${showFocusWidget ? `
         <div class="ml-focus-widget ${focusTimer.running ? "running" : ""}" aria-label="Focus Timer">
           <div class="ml-focus-head">
             <span class="ml-focus-title">${focusTimer.isBreak ? "Break Timer" : "Focus Timer"}</span>
@@ -982,8 +1072,22 @@
             <button type="button" id="ml-focus-reset-btn" class="ml-focus-rst-btn" title="Reset timer">↺</button>
             <span class="ml-focus-count" title="Completed focus blocks today">${focusToday}✓</span>
           </div>
+          ${EDGE && EDGE.AudioFocus ? (() => {
+            const curAudio = EDGE.AudioFocus.getMode();
+            return `
+              <div class="ml-focus-audio-row" role="group" aria-label="Offline focus soundscape">
+                ${[
+                  { id: "off", lbl: "Quiet" },
+                  { id: "brown", lbl: "Brown" },
+                  { id: "gamma40", lbl: "40Hz" },
+                  { id: "rain", lbl: "Rain" }
+                ].map((a) => `<button type="button" class="ml-focus-audio-chip ${curAudio === a.id ? "active" : ""}" data-focus-audio="${a.id}" title="Offline WebAudio ${a.lbl} focus soundscape">${a.lbl}</button>`).join("")}
+              </div>
+            `;
+          })() : ""}
           ${focusTimer.doneNotice ? `<div class="ml-focus-done-msg">${escapeHtml(focusTimer.doneNotice)}</div>` : ""}
         </div>
+        ` : ""}
         <div class="ml-side-meta">
           <span>Mastered</span>
           <strong>${stats.masteredCount} / ${stats.totalNodes}</strong>
@@ -1000,6 +1104,11 @@
             ${UI_ICONS.save}
           </button>
         </div>
+        ${ONBOARDING ? `
+          <button type="button" id="ml-side-customize-btn" class="ml-side-install-btn pr-side-custom-btn" title="Open Flagship Intro & Deep Studio Configurator (Clean Zen ↔ Max Command Center)">
+            <span>✦</span><span>Customize Studio</span>
+          </button>
+        ` : ""}
         ${deferredInstallPrompt ? `
           <button type="button" id="ml-pwa-install-btn" class="ml-side-install-btn" title="Install Primer Studio for full offline access">
             ${UI_ICONS.install}<span>Install Offline App</span>
@@ -1064,6 +1173,14 @@
         });
       }
 
+      const sideCustomBtn = document.getElementById("ml-side-customize-btn");
+      if (sideCustomBtn && ONBOARDING) {
+        sideCustomBtn.addEventListener("click", () => {
+          AudioFX.playTap();
+          openStudioIntro("config", false);
+        });
+      }
+
       foot.querySelectorAll("[data-focus-min]").forEach((btn) => {
         btn.addEventListener("click", () => {
           AudioFX.playTap();
@@ -1084,6 +1201,16 @@
           setFocusPreset(focusTimer.presetMin, focusTimer.isBreak);
         });
       }
+      if (EDGE && EDGE.AudioFocus) {
+        foot.querySelectorAll("[data-focus-audio]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const nextMode = btn.dataset.focusAudio;
+            const curMode = EDGE.AudioFocus.getMode();
+            EDGE.AudioFocus.setMode(nextMode === curMode && nextMode !== "off" ? "off" : nextMode);
+            renderNavTabs();
+          });
+        });
+      }
     }
   }
 
@@ -1098,12 +1225,18 @@
     const forgeTotal = CODE_FORGE && CODE_FORGE.QUESTS ? CODE_FORGE.QUESTS.length : 36;
     const isBrandNew = stats.masteredCount === 0 && forgeCleared === 0;
 
+    const sc = ONBOARDING ? ONBOARDING.ensureStudioConfig(state) : null;
+    const wCfg = (sc && sc.widgets) || {};
+    const hiddenSubjects = new Set((sc && sc.hiddenSubjects) || []);
+    const displayName = sc && sc.displayName ? sc.displayName.trim() : "";
+
     function getDashGreeting() {
-      if (isBrandNew) return "Welcome to Primer";
+      const suffix = displayName ? `, ${displayName}` : "";
+      if (isBrandNew) return `Welcome to Primer${suffix}`;
       const h = new Date().getHours();
-      if (h < 12) return "Good morning";
-      if (h < 18) return "Good afternoon";
-      return "Good evening";
+      if (h < 12) return `Good morning${suffix}`;
+      if (h < 18) return `Good afternoon${suffix}`;
+      return `Good evening${suffix}`;
     }
 
     const aiCodingWorlds = ["ai_ml", "web_coding", "python_tech", "dsa_mastery", "backend_sql_dev", "js_ts_architecture"];
@@ -1165,7 +1298,7 @@
         startHint: "DOST Mechanical-Technical",
         worldIds: ["exam_mastery"]
       }
-    ].map((lib) => {
+    ].filter((lib) => !hiddenSubjects.has(lib.id)).map((lib) => {
       const nodes = DATA.NODES.filter((n) => lib.worldIds.includes(n.worldId));
       const done = nodes.filter((n) => (state.nodeMastery[n.id] || 0) >= 1).length;
       return Object.assign({}, lib, { count: nodes.length, done });
@@ -1196,7 +1329,35 @@
     const statusFilter = state.pathStatusFilter || "all";
     const hasSearch = Boolean((state.pathQuery || "").trim());
     const showSubjectOverview = state.eraFilter === "all" && !state.pathBrowseAll && !hasSearch;
-    const showGuide = !state.hideHowItWorks;
+    const showGuide = !state.hideHowItWorks && wCfg.quickGuide !== false;
+
+    const teleHudHtml = wCfg.telemetryHud ? (() => {
+      const elo = (state.telemetry && Math.round(state.telemetry.eloRating || 1000)) || 1000;
+      const calM = EDGE ? EDGE.getCalibrationMetrics(state) : null;
+      const roiM = EDGE ? EDGE.computeRoiTargets(state, DATA, TUTOR, 2) : null;
+      const vaultSum = MY_VAULT ? MY_VAULT.getVaultSummary(state) : { dueCount: 0 };
+      const feynCnt = Object.keys(state.feynmanVerified || {}).length;
+      return `
+        <section class="pr-tele-hud" aria-label="Pro Telemetry Command HUD">
+          <div class="pr-tele-metrics">
+            <div class="pr-tele-stat"><span>ELO</span><strong>${elo}</strong></div>
+            <div class="pr-tele-stat"><span>CALIBRATION</span><strong>${calM && calM.calibrationScore !== null ? calM.calibrationScore + "%" : "—"}</strong></div>
+            <div class="pr-tele-stat ${calM && calM.illusionCount > 0 ? "warn" : ""}"><span>ILLUSIONS</span><strong>${calM ? calM.illusionCount : 0}</strong></div>
+            <div class="pr-tele-stat"><span>FEYNMAN</span><strong>${feynCnt}</strong></div>
+            <div class="pr-tele-stat"><span>VAULT DUE</span><strong>${vaultSum.dueCount || 0}</strong></div>
+            <div class="pr-tele-stat"><span>FOCUS</span><strong>${state.focusMinutesTotal || 0}m</strong></div>
+            ${roiM ? `<div class="pr-tele-stat"><span>${escapeHtml(roiM.goal.short || "TARGET")}</span><strong>${roiM.readinessPct}%${roiM.daysLeft !== null ? ` · ${roiM.daysLeft}d` : ""}</strong></div>` : ""}
+          </div>
+          <div class="pr-tele-hotbar">
+            <button type="button" class="pr-tele-btn" data-tele-act="blind">🕶️ Blind Mix</button>
+            <button type="button" class="pr-tele-btn" data-tele-act="exam">🎯 Exams</button>
+            <button type="button" class="pr-tele-btn" data-tele-act="work">✏️ Work</button>
+            <button type="button" class="pr-tele-btn" data-tele-act="constellation">🌌 Map</button>
+            <button type="button" class="pr-tele-btn accent" data-tele-act="customize">✦ Layout</button>
+          </div>
+        </section>
+      `;
+    })() : "";
 
     const zeroStarters = [
       {
@@ -1230,6 +1391,7 @@
     ];
 
     let html = `
+      ${teleHudHtml}
       <section class="ml-bento-grid ml-dash-hero">
         <div class="ml-bento-card ml-welcome-card">
           <div class="ml-bento-eyebrow">${escapeHtml(getDashGreeting())}</div>
@@ -1289,7 +1451,7 @@
 
     const dailyPlan = buildDailySessionPlan(state, rec, dueCount);
     const dailyPct = Math.round((dailyPlan.doneCount / dailyPlan.total) * 100);
-    if (showSubjectOverview) {
+    if (showSubjectOverview && wCfg.dailySession !== false) {
       html += `
         <section class="ml-daily-session-card" aria-label="Today's study session">
           <div class="ml-daily-head">
@@ -1325,6 +1487,90 @@
       `;
     }
 
+    if (showSubjectOverview && EDGE && wCfg.unfairEdge !== false) {
+      const cal = EDGE.getCalibrationMetrics(state);
+      const roi = EDGE.computeRoiTargets(state, DATA, TUTOR, 4);
+      const activePreset = state.edgeInterleavePreset || "smart";
+      const feynmanDone = Object.keys(state.feynmanVerified || {}).length;
+      const runs = (state.edgeStats && state.edgeStats.interleaveRuns) || 0;
+      const bestMed = state.edgeStats && state.edgeStats.interleaveMedianSec ? `${state.edgeStats.interleaveMedianSec}s/Q` : "—";
+
+      html += `
+        <section class="pr-edge-deck" aria-label="Unfair Advantage Engine">
+          <div class="pr-edge-head">
+            <div>
+              <div class="ml-bento-eyebrow">UNFAIR ADVANTAGE ENGINE · METACOGNITION &amp; 80/20 LEVERAGE</div>
+              <h3 class="pr-edge-title">Train the hidden skills real exams actually test.</h3>
+            </div>
+            <div class="pr-edge-kpis">
+              <span class="pr-edge-kpi" title="Confidence calibration accuracy">Calibration <strong>${cal.calibrationScore !== null ? cal.calibrationScore + "%" : "—"}</strong></span>
+              <span class="pr-edge-kpi ${cal.illusionCount > 0 ? "warn" : ""}" title="High-confidence wrong answers caught">Illusions <strong>${cal.illusionCount}</strong></span>
+              <span class="pr-edge-kpi" title="Concepts verified via Feynman plain-English check">Feynman <strong>${feynmanDone}</strong></span>
+              <span class="pr-edge-kpi" title="Best cold-recognition median speed in Blind Interleave">Cold Speed <strong>${bestMed}</strong></span>
+            </div>
+          </div>
+
+          <div class="pr-edge-grid">
+            <div class="pr-edge-card">
+              <div class="pr-edge-card-kicker">1 · BLIND-TOPIC INTERLEAVING${runs > 0 ? ` · ${runs} RUN${runs === 1 ? "" : "S"}` : ""}</div>
+              <h4>No-Labels Cold Recognition</h4>
+              <p class="pr-edge-card-desc">Real exams never tell you the chapter. Solve 10 unlabeled mixed questions across 5+ worlds — topic &amp; cheat code reveal only after you lock.</p>
+              <div class="pr-edge-preset-row">
+                ${EDGE.INTERLEAVE_PRESETS.map((p) => `
+                  <button type="button" class="pr-edge-pill ${activePreset === p.id ? "active" : ""}" data-edge-preset="${p.id}" title="${escapeHtml(p.desc)}">
+                    ${escapeHtml(p.label)}${p.id === "illusions" && (cal.illusionCount + cal.luckyCount) > 0 ? ` (${cal.illusionCount + cal.luckyCount})` : ""}
+                  </button>
+                `).join("")}
+              </div>
+              <div class="pr-edge-card-foot">
+                <button type="button" class="ml-btn-primary" id="pr-edge-start-blind">
+                  <span>Start 10Q Blind Drill</span>
+                  ${UI_ICONS.arrowRight}
+                </button>
+                <button type="button" class="ml-btn-mini" id="pr-edge-open-feynman" title="Explain a concept like I'm 12 — offline semantic checker">🧠 Feynman Check</button>
+              </div>
+              <div class="pr-edge-cal-strip">
+                <strong>UPCAT / Exam Calibration:</strong> ${escapeHtml(cal.upcatAdvice)}
+              </div>
+            </div>
+
+            <div class="pr-edge-card">
+              <div class="pr-edge-card-kicker">2 · 80/20 ROI BOTTLENECK SNIPER</div>
+              <div class="pr-edge-roi-top">
+                <select id="pr-edge-goal-sel" class="pr-edge-select" aria-label="Target exam or goal">
+                  ${EDGE.EXAM_GOALS.map((g) => `<option value="${g.id}" ${roi.goal.id === g.id ? "selected" : ""}>${escapeHtml(g.label)}</option>`).join("")}
+                </select>
+                <input type="date" id="pr-edge-date-inp" class="pr-edge-date" value="${escapeHtml(roi.dateIso)}" aria-label="Target exam date" title="Optional target exam date for daily quota countdown" />
+              </div>
+              <div class="pr-edge-readiness-bar">
+                <div class="pr-edge-readiness-meta">
+                  <span><strong>${roi.readinessPct}%</strong> target coverage (${roi.masteredInGoal}/${roi.totalInGoal})</span>
+                  <span>${roi.daysLeft !== null ? `<strong>${roi.daysLeft}d left</strong> · ${roi.dailyQuota} skill${roi.dailyQuota === 1 ? "" : "s"}/day` : "Set date for daily pace"}</span>
+                </div>
+                <div class="ml-progress-track">
+                  <div class="ml-progress-fill" style="width:${Math.max(roi.readinessPct > 0 ? 4 : 0, roi.readinessPct)}%"></div>
+                </div>
+              </div>
+              <div class="pr-edge-roi-list">
+                ${roi.targets.map((t) => `
+                  <div class="pr-edge-roi-item">
+                    <button type="button" class="pr-edge-roi-main" data-edge-roi-node="${t.node.id}">
+                      <span class="pr-edge-roi-ico">${t.node.icon}</span>
+                      <span class="pr-edge-roi-copy">
+                        <strong>${fmtMath(t.node.title)}</strong>
+                        <span class="pr-edge-roi-why ${t.hasIllusion ? "warn" : ""}">${escapeHtml(t.reason)}</span>
+                      </span>
+                    </button>
+                    <button type="button" class="ml-btn-mini" data-edge-feynman-node="${t.node.id}" title="Test yourself with a Feynman Check">🧠</button>
+                  </div>
+                `).join("")}
+              </div>
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
     if (showGuide) {
       html += `
         <section class="ml-howto-strip" aria-label="How Primer works">
@@ -1353,43 +1599,51 @@
       `;
     }
 
-    html += `
-      <section class="ml-zero-shelf">
-        <div class="ml-section-head">
-          <div>
-            <h3 class="ml-section-title">Start from Zero</h3>
-            <p class="ml-section-sub">Recommended starting points for complete beginners — each begins with an explanation.</p>
+    if (wCfg.zeroShelf !== false) {
+      html += `
+        <section class="ml-zero-shelf">
+          <div class="ml-section-head">
+            <div>
+              <h3 class="ml-section-title">Start from Zero</h3>
+              <p class="ml-section-sub">Recommended starting points for complete beginners — each begins with an explanation.</p>
+            </div>
+            <button type="button" class="ml-dash-quiet-link" id="ml-open-studio-lib">Open Code Studio Library →</button>
           </div>
-          <button type="button" class="ml-dash-quiet-link" id="ml-open-studio-lib">Open Code Studio Library →</button>
-        </div>
-        <div class="ml-zero-grid">
-          ${zeroStarters.map((st) => `
-            <button type="button" class="ml-zero-card" data-zero-action="${st.action}" data-zero-target="${st.target}">
-              <span class="ml-zero-tag">${escapeHtml(st.tag)}</span>
-              <strong>${escapeHtml(st.title)}</strong>
-              <p>${escapeHtml(st.desc)}</p>
-              <span class="ml-zero-go">Read tutorial →</span>
-            </button>
-          `).join("")}
-        </div>
-      </section>
+          <div class="ml-zero-grid">
+            ${zeroStarters.map((st) => `
+              <button type="button" class="ml-zero-card" data-zero-action="${st.action}" data-zero-target="${st.target}">
+                <span class="ml-zero-tag">${escapeHtml(st.tag)}</span>
+                <strong>${escapeHtml(st.title)}</strong>
+                <p>${escapeHtml(st.desc)}</p>
+                <span class="ml-zero-go">Read tutorial →</span>
+              </button>
+            `).join("")}
+          </div>
+        </section>
+      `;
+    }
 
-      <section class="ml-ex-dash-banner">
-        <div class="ml-ex-dash-left">
-          <span class="ml-bento-eyebrow">NEW · TAILORED CBT SIMULATOR</span>
-          <h3>Exam Mode — DOST-SEI, UPCAT, Civil Service, NMAT & Big 4</h3>
-          <p>Run authentic separately-timed mocks with official scoring rules (UPCAT R − ¼W & UPG, CSE 80% gate, NMAT 200–800 PR) and 1-click lesson remediation.</p>
-        </div>
-        <div class="ml-ex-dash-pills">
-          <button type="button" class="ml-btn-mini" data-dash-exam="dost_sei">🔬 DOST-SEI</button>
-          <button type="button" class="ml-btn-mini" data-dash-exam="upcat">🌻 UPCAT</button>
-          <button type="button" class="ml-btn-mini" data-dash-exam="cse_pro">🏛️ CSE Pro</button>
-          <button type="button" class="ml-btn-mini" data-dash-exam="nmat">🩺 NMAT</button>
-          <button type="button" class="ml-btn-mini" data-dash-exam="acet">🦅 ACET</button>
-          <button type="button" class="ml-btn-primary" id="ml-dash-open-exam-hub">Open All 10 Exams →</button>
-        </div>
-      </section>
+    if (wCfg.examBanner !== false) {
+      html += `
+        <section class="ml-ex-dash-banner">
+          <div class="ml-ex-dash-left">
+            <span class="ml-bento-eyebrow">NEW · TAILORED CBT SIMULATOR</span>
+            <h3>Exam Mode — DOST-SEI, UPCAT, Civil Service, NMAT & Big 4</h3>
+            <p>Run authentic separately-timed mocks with official scoring rules (UPCAT R − ¼W & UPG, CSE 80% gate, NMAT 200–800 PR) and 1-click lesson remediation.</p>
+          </div>
+          <div class="ml-ex-dash-pills">
+            <button type="button" class="ml-btn-mini" data-dash-exam="dost_sei">🔬 DOST-SEI</button>
+            <button type="button" class="ml-btn-mini" data-dash-exam="upcat">🌻 UPCAT</button>
+            <button type="button" class="ml-btn-mini" data-dash-exam="cse_pro">🏛️ CSE Pro</button>
+            <button type="button" class="ml-btn-mini" data-dash-exam="nmat">🩺 NMAT</button>
+            <button type="button" class="ml-btn-mini" data-dash-exam="acet">🦅 ACET</button>
+            <button type="button" class="ml-btn-primary" id="ml-dash-open-exam-hub">Open All 10 Exams →</button>
+          </div>
+        </section>
+      `;
+    }
 
+    html += `
       <section class="ml-library-section">
         <div class="ml-library-bar">
           <div>
@@ -1700,10 +1954,28 @@
       toggleGuideBtn.addEventListener("click", () => {
         AudioFX.playTap();
         state.hideHowItWorks = !state.hideHowItWorks;
+        if (ONBOARDING) {
+          const scNow = ONBOARDING.ensureStudioConfig(state);
+          scNow.widgets.quickGuide = !state.hideHowItWorks;
+        }
         saveState();
         renderPathView(main);
       });
     }
+
+    main.querySelectorAll("[data-tele-act]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        AudioFX.playTap();
+        const act = btn.dataset.teleAct;
+        if (act === "blind") startBlindInterleaveSession(state.edgeInterleavePreset || "smart", 10);
+        else if (act === "customize") openStudioIntro("config", false);
+        else if (act === "exam" || act === "work" || act === "constellation") {
+          state.activeTab = act;
+          saveState();
+          renderApp();
+        }
+      });
+    });
 
     // Bind Start-from-Zero starter cards
     main.querySelectorAll("[data-zero-action]").forEach((btn) => {
@@ -1863,6 +2135,62 @@
         state.activeTab = "work";
         saveState();
         renderApp();
+      });
+    }
+
+    if (EDGE) {
+      main.querySelectorAll("[data-edge-preset]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          AudioFX.playTap();
+          state.edgeInterleavePreset = btn.dataset.edgePreset;
+          saveState();
+          renderPathView(main);
+        });
+      });
+      const startBlindBtn = document.getElementById("pr-edge-start-blind");
+      if (startBlindBtn) {
+        startBlindBtn.addEventListener("click", () => {
+          AudioFX.playTap();
+          startBlindInterleaveSession(state.edgeInterleavePreset || "smart", 10);
+        });
+      }
+      const openFeynBtn = document.getElementById("pr-edge-open-feynman");
+      if (openFeynBtn) {
+        openFeynBtn.addEventListener("click", () => {
+          AudioFX.playTap();
+          openFeynmanModal(rec ? rec.id : (DATA.NODES[0] && DATA.NODES[0].id));
+        });
+      }
+      const goalSel = document.getElementById("pr-edge-goal-sel");
+      if (goalSel) {
+        goalSel.addEventListener("change", () => {
+          AudioFX.playTap();
+          EDGE.ensureEdgeState(state);
+          state.examTarget.goalId = goalSel.value;
+          saveState();
+          renderPathView(main);
+        });
+      }
+      const dateInp = document.getElementById("pr-edge-date-inp");
+      if (dateInp) {
+        dateInp.addEventListener("change", () => {
+          EDGE.ensureEdgeState(state);
+          state.examTarget.dateIso = dateInp.value || "";
+          saveState();
+          renderPathView(main);
+        });
+      }
+      main.querySelectorAll("[data-edge-roi-node]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          AudioFX.playTap();
+          startNodeSession(btn.dataset.edgeRoiNode, "lesson");
+        });
+      });
+      main.querySelectorAll("[data-edge-feynman-node]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          AudioFX.playTap();
+          openFeynmanModal(btn.dataset.edgeFeynmanNode);
+        });
       });
     }
   }
@@ -2595,6 +2923,197 @@
     renderModal();
   }
 
+  function startBlindInterleaveSession(presetId, count) {
+    if (!EDGE) {
+      startSrsReviewSession();
+      return;
+    }
+    const built = EDGE.buildBlindInterleave(state, DATA, TUTOR, presetId || state.edgeInterleavePreset || "smart", count || 10);
+    if (!built || !built.questions || !built.questions.length) {
+      startSrsReviewSession();
+      return;
+    }
+    session = {
+      node: {
+        id: "blind-interleave",
+        worldId: "interleave",
+        title: `Blind Interleave · ${built.preset.label} (${built.distinctWorlds} Worlds)`,
+        icon: "🕶️"
+      },
+      mode: "blind_interleave",
+      blindTopic: true,
+      interleavePreset: built.preset.id,
+      phase: "quiz",
+      questions: built.questions.map((q) => Object.assign({ isRetry: false }, q)),
+      originalCount: built.questions.length,
+      firstTryCorrect: 0,
+      idx: 0,
+      correctCount: 0,
+      combo: 0,
+      maxCombo: 0,
+      xpEarned: 0,
+      gemsEarned: 0,
+      selectedOpt: null,
+      confidence: "sure",
+      lastConfidenceOutcome: null,
+      blindTimesMs: [],
+      checked: false,
+      isCorrect: false,
+      lastFlash: null,
+      showHint: false,
+      questionStart: Date.now()
+    };
+    renderModal();
+  }
+
+  function openFeynmanModal(nodeId) {
+    if (!EDGE) return;
+    const node = DATA.NODES.find((n) => n.id === nodeId) || getRecommendedNode() || DATA.NODES[0];
+    if (!node) return;
+    EDGE.ensureEdgeState(state);
+    const saved = state.feynmanVerified && state.feynmanVerified[node.id];
+    session = {
+      mode: "feynman",
+      phase: "feynman",
+      node,
+      feynmanText: saved ? saved.text : "",
+      feynmanResult: saved && saved.text ? EDGE.evaluateFeynman(node, saved.text) : null,
+      feynmanSavedNotice: ""
+    };
+    renderModal();
+  }
+
+  function renderFeynmanModal(modal) {
+    const n = session.node;
+    const w = getWorld(n.worldId);
+    const anchors = EDGE ? EDGE.extractNodeAnchors(n) : [];
+    const res = session.feynmanResult;
+
+    modal.innerHTML = `
+      <div class="ml-modal-shell">
+        <div class="ml-modal-top">
+          <button type="button" class="ml-close-btn" id="ml-modal-close">✕</button>
+          <div class="ml-brief-pill" style="--world-color:${w.color}; --world-soft:${w.bgSoft}; --world-border:${w.borderSoft};">
+            🧠 Feynman Active-Recall Check · ${n.icon} ${escapeHtml(n.title)}
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button type="button" class="ml-btn-mini" id="pr-feyn-open-lesson">📖 Review Lesson</button>
+          </div>
+        </div>
+        <div class="ml-brief-body pr-feynman-body">
+          <div class="pr-feynman-prompt-box">
+            <div class="ml-bento-eyebrow">EXPLAIN IT LIKE I'M 12 (NO PEEKING)</div>
+            <h3 style="margin:4px 0 6px;">How does <strong>${escapeHtml(n.title)}</strong> work in plain English?</h3>
+            <p class="ml-viz-sub" style="margin:0;">Write 2–4 simple sentences explaining the core mechanism <em>why</em> it works, plus a quick 1-line example. Graded 100% offline against the lesson's key concept anchors.</p>
+          </div>
+
+          <textarea id="pr-feyn-ta" class="pr-vault-ta pr-feynman-ta" rows="5" placeholder="Example: Imagine... it works because... for example...">${escapeHtml(session.feynmanText || "")}</textarea>
+
+          <div class="pr-feynman-actions">
+            <button type="button" class="ml-btn-primary" id="pr-feyn-grade-btn">Grade My Explanation →</button>
+            <button type="button" class="ml-btn-secondary" id="pr-feyn-peek-btn">${session.feynmanPeek ? "Hide Cheat Code" : "👁️ Peek Cheat Code"}</button>
+            <span class="ml-viz-sub" id="pr-feyn-wc">${(session.feynmanText || "").trim() ? (session.feynmanText || "").trim().split(/\s+/).length : 0} words</span>
+          </div>
+
+          ${session.feynmanPeek ? `
+            <div class="ml-cheat-code-strip" style="margin-top:10px;">
+              <strong>⚡ Reference Truth:</strong> ${fmtMath(n.easyTruth || n.cheatCode)}
+            </div>
+          ` : ""}
+
+          ${res ? `
+            <div class="pr-feynman-result ${res.passed ? "passed" : "growing"}">
+              <div class="pr-feynman-score-row">
+                <div>
+                  <div class="ml-bento-eyebrow">${escapeHtml(res.grade)}</div>
+                  <strong>${res.score}% Clarity Score</strong>
+                </div>
+                <span class="ml-mini-tag">${res.hasExample ? "✓ Example/Analogy detected" : "Tip: Add a 1-line example (+12%)"}</span>
+              </div>
+              <p style="margin:6px 0 10px;">${escapeHtml(res.feedback)}</p>
+              <div class="pr-feynman-anchors">
+                ${res.matched.map((m) => `<span class="pr-feyn-chip hit">✓ ${escapeHtml(m)}</span>`).join("")}
+                ${res.missing.map((m) => `<span class="pr-feyn-chip miss">○ ${escapeHtml(m)}</span>`).join("")}
+              </div>
+              <div class="pr-feynman-save-row">
+                <button type="button" class="ml-btn-primary" id="pr-feyn-save-btn">Save to My Vault &amp; Claim +30 XP</button>
+                <button type="button" class="ml-btn-mini" id="pr-feyn-drill-btn">⚡ Test with 5Q Drill</button>
+              </div>
+              ${session.feynmanSavedNotice ? `<div class="pr-feynman-saved">${escapeHtml(session.feynmanSavedNotice)}</div>` : ""}
+            </div>
+          ` : `
+            <div class="pr-feynman-hint-foot">
+              Checking against ${anchors.length} hidden conceptual anchors + example/analogy signal.
+            </div>
+          `}
+        </div>
+      </div>
+    `;
+
+    document.getElementById("ml-modal-close").addEventListener("click", closeSession);
+    const openLesBtn = document.getElementById("pr-feyn-open-lesson");
+    if (openLesBtn) {
+      openLesBtn.addEventListener("click", () => {
+        AudioFX.playTap();
+        startNodeSession(n.id, "lesson", true);
+      });
+    }
+    const ta = document.getElementById("pr-feyn-ta");
+    const wc = document.getElementById("pr-feyn-wc");
+    if (ta) {
+      ta.addEventListener("input", () => {
+        session.feynmanText = ta.value;
+        if (wc) {
+          const words = ta.value.trim() ? ta.value.trim().split(/\s+/).length : 0;
+          wc.textContent = `${words} word${words === 1 ? "" : "s"}`;
+        }
+      });
+      if (isFinePointer()) ta.focus();
+    }
+    const gradeBtn = document.getElementById("pr-feyn-grade-btn");
+    if (gradeBtn) {
+      gradeBtn.addEventListener("click", () => {
+        AudioFX.playTap();
+        session.feynmanResult = EDGE.evaluateFeynman(n, session.feynmanText || "");
+        session.feynmanSavedNotice = "";
+        if (session.feynmanResult.passed) AudioFX.playCorrect();
+        renderFeynmanModal(modal);
+      });
+    }
+    const peekBtn = document.getElementById("pr-feyn-peek-btn");
+    if (peekBtn) {
+      peekBtn.addEventListener("click", () => {
+        AudioFX.playTap();
+        session.feynmanPeek = !session.feynmanPeek;
+        renderFeynmanModal(modal);
+      });
+    }
+    const saveBtn = document.getElementById("pr-feyn-save-btn");
+    if (saveBtn && res) {
+      saveBtn.addEventListener("click", () => {
+        const firstTime = !(state.feynmanVerified && state.feynmanVerified[n.id]);
+        EDGE.saveFeynmanCheck(state, n, session.feynmanText || "", res, MY_VAULT);
+        if (firstTime || res.passed) {
+          state.xp += firstTime ? 30 : 10;
+          recordStudyActivity(1);
+        }
+        markDailyStep("learn");
+        saveState();
+        renderTopBar();
+        AudioFX.playLevelUp();
+        session.feynmanSavedNotice = `✓ Saved to My Vault Notes (${res.score}% clarity)${firstTime ? " · +30 XP awarded!" : " · +10 XP!"}`;
+        renderFeynmanModal(modal);
+      });
+    }
+    const drillBtn = document.getElementById("pr-feyn-drill-btn");
+    if (drillBtn) {
+      drillBtn.addEventListener("click", () => {
+        AudioFX.playTap();
+        startNodeSession(n.id, "drill", true);
+      });
+    }
+  }
+
   function startNodeSession(nodeId, mode, bypassLock) {
     const node = DATA.NODES.find((n) => n.id === nodeId);
     if (!node) return;
@@ -2990,6 +3509,13 @@
       });
     }
 
+    if (EDGE && typeof EDGE.mergeEdgeState === "function") {
+      Object.assign(merged, EDGE.mergeEdgeState(base, inc));
+    }
+    if (ONBOARDING && typeof ONBOARDING.mergeStudioConfig === "function") {
+      Object.assign(merged, ONBOARDING.mergeStudioConfig(base, inc));
+    }
+
     return merged;
   }
 
@@ -3000,6 +3526,8 @@
       state = Object.assign({}, defaultState, parsed);
     }
     if (TUTOR) TUTOR.ensureTelemetry(state);
+    if (EDGE) EDGE.ensureEdgeState(state);
+    if (ONBOARDING) ONBOARDING.ensureStudioConfig(state);
     applyThemeClass();
     saveState();
   }
@@ -3203,12 +3731,25 @@
         renderBackupModal(modal);
         return;
       }
-      state = Object.assign({}, defaultState, { studyLog: {}, nodeMastery: {}, multMastered: {}, trapBusted: {}, synthSolved: {}, mistakes: [], gymBest: {}, badges: [], ownedThemes: ["noir"], ownedAccessories: ["none"], userBookmarks: [], userNotes: {}, userDecks: [], derivationsSolved: {}, examHistory: [], forgeSolved: {}, forgeCode: {}, dailyChecklist: {}, focusLog: {}, focusMinutesTotal: 0 });
+      state = Object.assign({}, defaultState, {
+        studyLog: {}, nodeMastery: {}, multMastered: {}, trapBusted: {}, synthSolved: {},
+        mistakes: [], gymBest: {}, badges: [], ownedThemes: ["noir", "carbon", "kyoto", "monochrome"],
+        ownedAccessories: ["none", "mortarboard", "goggles", "monocle"], userBookmarks: [], userNotes: {},
+        userDecks: [], derivationsSolved: {}, examHistory: [], forgeSolved: {}, forgeCode: {},
+        dailyChecklist: {}, focusLog: {}, focusMinutesTotal: 0,
+        onboardingCompleted: false, studioConfig: null,
+        confidenceLog: { sureRight: 0, sureWrong: 0, halfRight: 0, halfWrong: 0, guessRight: 0, guessWrong: 0, illusions: [], luckyHits: [] },
+        feynmanVerified: {}, examTarget: { goalId: "auto", label: "", dateIso: "" },
+        edgeStats: { interleaveRuns: 0, interleaveBestPct: 0, interleaveMedianSec: null, feynmanCount: 0 }
+      });
       if (TUTOR) TUTOR.ensureTelemetry(state);
+      if (EDGE) EDGE.ensureEdgeState(state);
+      if (ONBOARDING) ONBOARDING.ensureStudioConfig(state);
       applyThemeClass();
       saveState();
       AudioFX.playTap();
       closeSession();
+      if (ONBOARDING) openStudioIntro("hero", true);
     });
 
     document.getElementById("ml-bk-merge").addEventListener("click", async () => {
@@ -3504,15 +4045,44 @@
 
     function buildResultsHtml(rawQ) {
       const q = lc(rawQ).trim();
-      if (!q) {
+      const powerCommands = [
+        { id: "open_intro_cfg", icon: "✦", label: "Customize Studio & Intro (Clean Zen ↔ Max Command Center)", hint: "Layout, theme, tabs & engine" },
+        { id: "preset_zen", icon: "🧘", label: "Switch Instantly to Ultra-Clean Zen Mode", hint: "Zero clutter canvas" },
+        { id: "preset_max", icon: "🛸", label: "Switch Instantly to Max Command Center (Bloated Pro HUD)", hint: "All widgets + 256 unlocked" },
+        { id: "blind_smart", icon: "🕶️", label: "Start Blind Interleave Drill (10 Unlabeled Qs)", hint: "Cold topic recognition" },
+        { id: "blind_illusions", icon: "🎯", label: "Launch Illusion Hunter (High-Confidence Errors)", hint: "Patch blind spots" },
+        { id: "feynman_rec", icon: "🧠", label: "Open Feynman Active-Recall Check", hint: "Explain like I'm 12" },
+        { id: "toggle_focus", icon: "⏱️", label: focusTimer.running ? "Pause Focus Timer" : "Start Focus Timer", hint: formatFocusMMSS(focusTimer.remainingSec) },
+        { id: "audio_brown", icon: "🎧", label: EDGE && EDGE.AudioFocus && EDGE.AudioFocus.getMode() === "brown" ? "Stop Brown Noise" : "Play Offline Brown Noise", hint: "WebAudio focus" },
+        { id: "audio_gamma", icon: "⚡", label: EDGE && EDGE.AudioFocus && EDGE.AudioFocus.getMode() === "gamma40" ? "Stop 40Hz Gamma Focus" : "Play 40Hz Gamma Focus Beat", hint: "Binaural focus" }
+      ];
+
+      if (!q || q.startsWith(">")) {
+        const cmdQuery = q.startsWith(">") ? q.slice(1).trim() : "";
+        const filteredCmds = cmdQuery
+          ? powerCommands.filter((c) => lc(c.label).includes(cmdQuery) || lc(c.hint).includes(cmdQuery))
+          : powerCommands;
         const qCnt = CODE_FORGE && CODE_FORGE.QUESTS ? CODE_FORGE.QUESTS.length : 0;
         const wkCnt = WORK_STUDIO && WORK_STUDIO.PROBLEMS ? WORK_STUDIO.PROBLEMS.length : 24;
         const exCnt = EXAM_MODE && EXAM_MODE.EXAMS ? EXAM_MODE.EXAMS.length : 10;
         return `
-          <div class="ml-viz-note" style="margin-bottom:10px;">Search across <strong>${exCnt} Exam blueprints</strong>, <strong>${wkCnt} Work Studio derivations</strong>, <strong>${DATA.NODES.length} lessons</strong>, <strong>${qCnt} Code Studio exercises</strong>, <strong>${VIZ.list.length} playgrounds</strong>, and your <strong>My Vault</strong> decks &amp; notes:</div>
-          <div class="ml-viz-tabs">
-            ${quickChips.map((chip) => `<button type="button" class="ml-pill" data-sq-chip="${chip}">🔍 ${chip}</button>`).join("")}
+          <div class="ml-search-group" style="margin-bottom:14px;">
+            <div class="ml-micro-label">⚡ Quick Power Commands (type <code>&gt;</code> to filter)</div>
+            <div class="ml-search-list">
+              ${filteredCmds.map((c) => `
+                <button type="button" class="ml-search-item" data-gs-cmd="${c.id}">
+                  <span><strong>${c.icon} ${escapeHtml(c.label)}</strong></span>
+                  <span class="ml-mini-tag">${escapeHtml(c.hint)}</span>
+                </button>
+              `).join("")}
+            </div>
           </div>
+          ${!q ? `
+            <div class="ml-viz-note" style="margin-bottom:10px;">Search across <strong>${exCnt} Exam blueprints</strong>, <strong>${wkCnt} Work Studio derivations</strong>, <strong>${DATA.NODES.length} lessons</strong>, <strong>${qCnt} Code Studio exercises</strong>, <strong>${VIZ.list.length} playgrounds</strong>, and your <strong>My Vault</strong> decks &amp; notes:</div>
+            <div class="ml-viz-tabs">
+              ${quickChips.map((chip) => `<button type="button" class="ml-pill" data-sq-chip="${chip}">🔍 ${chip}</button>`).join("")}
+            </div>
+          ` : ""}
         `;
       }
 
@@ -3759,6 +4329,42 @@
     const gsRes = document.getElementById("ml-gs-results");
 
     function bindResultClicks() {
+      gsRes.querySelectorAll("[data-gs-cmd]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          AudioFX.playTap();
+          const cmd = btn.dataset.gsCmd;
+          if (cmd === "open_intro_cfg" && ONBOARDING) {
+            closeSession();
+            openStudioIntro("config", false);
+          } else if (cmd === "preset_zen" && ONBOARDING) {
+            ONBOARDING.applyArchetypeToState(state, "zen");
+            saveState();
+            closeSession();
+          } else if (cmd === "preset_max" && ONBOARDING) {
+            ONBOARDING.applyArchetypeToState(state, "command_center");
+            saveState();
+            closeSession();
+          } else if (cmd === "blind_smart") {
+            startBlindInterleaveSession("smart", 10);
+          } else if (cmd === "blind_illusions") {
+            startBlindInterleaveSession("illusions", 10);
+          } else if (cmd === "feynman_rec") {
+            const rec = getRecommendedNode();
+            openFeynmanModal(rec ? rec.id : DATA.NODES[0].id);
+          } else if (cmd === "toggle_focus") {
+            toggleFocusTimer();
+            closeSession();
+          } else if (cmd === "audio_brown" && EDGE && EDGE.AudioFocus) {
+            EDGE.AudioFocus.setMode(EDGE.AudioFocus.getMode() === "brown" ? "off" : "brown");
+            renderNavTabs();
+            closeSession();
+          } else if (cmd === "audio_gamma" && EDGE && EDGE.AudioFocus) {
+            EDGE.AudioFocus.setMode(EDGE.AudioFocus.getMode() === "gamma40" ? "off" : "gamma40");
+            renderNavTabs();
+            closeSession();
+          }
+        });
+      });
       gsRes.querySelectorAll("[data-sq-chip]").forEach((btn) => {
         btn.addEventListener("click", () => {
           session.query = btn.dataset.sqChip;
@@ -4183,6 +4789,7 @@
     else if (session.phase === "sync_incoming") renderSyncIncomingModal(modal);
     else if (session.phase === "changelog") renderChangelogModal(modal);
     else if (session.phase === "prereqs") renderPrereqTreeModal(modal);
+    else if (session.phase === "feynman") renderFeynmanModal(modal);
     else if (session.phase === "bf-picker") renderBruteforcePicker(modal);
     else if (session.phase === "bruteforce") renderBruteforceRunner(modal);
     else if (session.phase === "briefing") renderBriefingPhase(modal);
@@ -4194,7 +4801,7 @@
   const modalRootEl = document.getElementById("ml-modal");
   if (modalRootEl) {
     modalRootEl.addEventListener("click", (e) => {
-      if (e.target === modalRootEl && session && ["search", "shop", "backup", "sync_incoming", "changelog", "prereqs", "bf-picker", "briefing"].includes(session.phase)) {
+      if (e.target === modalRootEl && session && ["search", "shop", "backup", "sync_incoming", "changelog", "prereqs", "feynman", "bf-picker", "briefing"].includes(session.phase)) {
         closeSession();
       }
     });
@@ -4843,6 +5450,7 @@
           <div style="display:flex; gap:6px; flex-wrap:wrap;">
             ${MY_VAULT ? `<button type="button" class="ml-btn-mini ${isBm ? "active" : ""}" id="ml-brief-bm" title="Bookmark lesson in My Vault">${isBm ? "★" : "☆"}</button>` : ""}
             ${MY_VAULT ? `<button type="button" class="ml-btn-mini ${noteDrawerOpen || existingNote ? "active" : ""}" id="ml-brief-note-toggle" title="Personal Markdown + LaTeX lesson note">📝 ${existingNote ? "Note" : "+ Note"}</button>` : ""}
+            ${EDGE ? `<button type="button" class="ml-btn-mini ${state.feynmanVerified && state.feynmanVerified[n.id] ? "active" : ""}" id="ml-brief-feynman" title="Explain this concept in plain English (Feynman Check)">🧠 ${state.feynmanVerified && state.feynmanVerified[n.id] ? "Feynman ✓" : "Feynman"}</button>` : ""}
             ${linkedForgeQuestId && CODE_FORGE ? `<button type="button" class="ml-btn-forge-mini" id="ml-brief-open-forge" title="Try the matching hands-on exercise in Code Studio">Code Studio</button>` : ""}
             <button type="button" class="ml-btn-mini" id="ml-brief-open-tree" title="View prerequisite tree & downstream skills">🔗 Tree</button>
             ${n.bruteforce ? `<button type="button" class="ml-btn-bruteforce-mini" id="ml-brief-bf">🔨 Bruteforce</button>` : ""}
@@ -4954,6 +5562,13 @@
       treeBriefBtn.addEventListener("click", () => {
         AudioFX.playTap();
         openPrereqModal(n.id);
+      });
+    }
+    const feynBriefBtn = document.getElementById("ml-brief-feynman");
+    if (feynBriefBtn && EDGE) {
+      feynBriefBtn.addEventListener("click", () => {
+        AudioFX.playTap();
+        openFeynmanModal(n.id);
       });
     }
     const forgeBriefBtn = document.getElementById("ml-brief-open-forge");
@@ -5071,6 +5686,18 @@
       `;
     }
 
+    const activeConf = session.confidence || "sure";
+    const confFeedback = session.checked && session.lastConfidenceOutcome ? session.lastConfidenceOutcome : null;
+    const isBlindLocked = !!session.blindTopic && !session.checked;
+    const blindRevealHtml = session.blindTopic && session.checked && q.sourceTitle ? `
+      <div class="pr-blind-reveal">
+        <span class="pr-blind-tag">🕶️ Hidden Topic Revealed</span>
+        <strong>${q.sourceIcon || "◆"} ${escapeHtml(q.sourceTitle)}</strong>
+        ${q.sourceWorldTitle ? `<span class="ml-mini-tag">${escapeHtml(q.sourceWorldTitle)}</span>` : ""}
+        ${q.sourceCheatCode ? `<div class="pr-blind-cheat">⚡ ${fmtMath(q.sourceCheatCode)}</div>` : ""}
+      </div>
+    ` : "";
+
     let bottomBanner = "";
     if (!session.checked) {
       bottomBanner = `
@@ -5083,8 +5710,8 @@
       bottomBanner = `
         <div class="ml-quiz-footer correct" role="status" aria-live="polite">
           <div class="ml-fb-copy">
-            <div class="ml-fb-title">✅ Nice! Wait, see how easy?! (+${15 + Math.min(10, (session.combo - 1) * 3)} XP)</div>
-            <div class="ml-fb-desc">${fmtMath(q.whyEasy)}</div>
+            <div class="ml-fb-title">✅ Nice! Wait, see how easy?! (+${15 + Math.min(10, (session.combo - 1) * 3)} XP)${confFeedback && confFeedback.tag === "lucky" ? ` <span class="pr-conf-badge lucky">🎲 ${escapeHtml(confFeedback.headline)}</span>` : ""}</div>
+            <div class="ml-fb-desc">${fmtMath(q.whyEasy)}${confFeedback && confFeedback.tag === "lucky" ? ` — ${escapeHtml(confFeedback.detail)}` : ""}</div>
           </div>
           <button type="button" class="ml-btn-primary" id="ml-next-btn">
             ${session.idx + 1 >= session.questions.length ? "Finish Round →" : "Continue →"}
@@ -5095,8 +5722,8 @@
       bottomBanner = `
         <div class="ml-quiz-footer wrong" role="status" aria-live="polite">
           <div class="ml-fb-copy">
-            <div class="ml-fb-title">💡 Answer: <strong>${fmtMath(q.answer)}</strong> ${session.mode === "lesson" ? "(Queued at end to nail it!)" : ""}</div>
-            <div class="ml-fb-desc">${fmtMath(q.whyEasy)}</div>
+            <div class="ml-fb-title">💡 Answer: <strong>${fmtMath(q.answer)}</strong> ${session.mode === "lesson" ? "(Queued at end to nail it!)" : ""}${confFeedback && confFeedback.tag === "illusion" ? ` <span class="pr-conf-badge illusion">⚠️ ${escapeHtml(confFeedback.headline)}</span>` : confFeedback && confFeedback.tag === "honest_miss" ? ` <span class="pr-conf-badge honest">🧭 ${escapeHtml(confFeedback.headline)}</span>` : ""}</div>
+            <div class="ml-fb-desc">${fmtMath(q.whyEasy)}${confFeedback && (confFeedback.tag === "illusion" || confFeedback.tag === "honest_miss") ? ` — ${escapeHtml(confFeedback.detail)}` : ""}</div>
           </div>
           <button type="button" class="ml-btn-danger" id="ml-next-btn">
             ${session.idx + 1 >= session.questions.length ? "See Summary →" : "Got It →"}
@@ -5123,8 +5750,8 @@
 
         <div class="ml-quiz-body">
           <div class="ml-quiz-meta">
-            <span>${session.node.icon} ${escapeHtml(session.node.title)}${q.sourceTitle ? ` · Testing: <strong>${escapeHtml(q.sourceTitle)}</strong>` : ""}</span>
-            <span>${session.mode === "drill" ? "⚡ Fresh Procedural Drill" : session.mode === "prereq_testout" ? "⚡ Prereq Test-Out (Need ≥80%)" : "Question"} ${session.idx + 1} / ${session.questions.length}</span>
+            <span>${isBlindLocked ? "🕶️ <strong>Blind Topic</strong> · Cold Recognition (Identify the concept first)" : `${session.node.icon} ${escapeHtml(session.node.title)}${q.sourceTitle ? ` · Testing: <strong>${escapeHtml(q.sourceTitle)}</strong>` : ""}`}</span>
+            <span>${session.mode === "blind_interleave" ? "🕶️ Cold Mix" : session.mode === "drill" ? "⚡ Fresh Procedural Drill" : session.mode === "prereq_testout" ? "⚡ Prereq Test-Out (Need ≥80%)" : "Question"} ${session.idx + 1} / ${session.questions.length}</span>
           </div>
 
           ${!session.checked && session.lastFlash ? `<div class="ml-instant-toast ${session.lastFlash.ok ? "ok" : "nope"}">${fmtMath(session.lastFlash.msg)}</div>` : ""}
@@ -5136,6 +5763,19 @@
           ${session.showBoard && WHITEBOARD ? `<div id="ml-quiz-wb-mount" style="margin:10px 0;"></div>` : ""}
 
           ${session.showHint ? `<div class="ml-hint-box">💡 <strong>Hint:</strong> ${fmtMath(q.hint)}</div>` : ""}
+
+          ${blindRevealHtml}
+
+          ${EDGE && (!ONBOARDING || ONBOARDING.ensureStudioConfig(state).showConfidenceBar !== false) && !session.checked && !heartsBlocked ? `
+            <div class="pr-conf-bar" role="group" aria-label="Confidence calibration">
+              <span class="pr-conf-lbl">Confidence</span>
+              <div class="pr-conf-pills">
+                <button type="button" class="pr-conf-btn ${activeConf === "sure" ? "active sure" : ""}" data-conf-lvl="sure" title="Confident — wrong answers here get flagged as Mastery Illusions [Z]">● Sure <kbd>Z</kbd></button>
+                <button type="button" class="pr-conf-btn ${activeConf === "half" ? "active half" : ""}" data-conf-lvl="half" title="50/50 narrowed down [X]">◐ 50/50 <kbd>X</kbd></button>
+                <button type="button" class="pr-conf-btn ${activeConf === "guess" ? "active guess" : ""}" data-conf-lvl="guess" title="Unsure guess — lucky hits get queued for verification [C]">? Guess <kbd>C</kbd></button>
+              </div>
+            </div>
+          ` : ""}
 
           ${inputBlock}
 
@@ -5246,6 +5886,14 @@
 
     const nextBtn = document.getElementById("ml-next-btn");
     if (nextBtn) nextBtn.addEventListener("click", advanceQuiz);
+
+    modal.querySelectorAll("[data-conf-lvl]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        AudioFX.playTap();
+        session.confidence = btn.dataset.confLvl;
+        renderQuizPhase(modal);
+      });
+    });
   }
 
   function submitCurrentAnswer() {
@@ -5264,10 +5912,30 @@
     session.isCorrect = correct;
 
     if (TUTOR) {
-      const nid = q.nodeId || q.sourceNodeId || (session.node && session.node.id !== "crack-repair" && !session.node.id.startsWith("skip-") ? session.node.id : null);
+      const nid = q.nodeId || q.sourceNodeId || (session.node && session.node.id !== "crack-repair" && !session.node.id.startsWith("skip-") && session.node.id !== "blind-interleave" ? session.node.id : null);
       if (nid) {
         TUTOR.recordAttempt(state, { nodeId: nid, correct, elapsedMs, mode: session.mode, prompt: q.prompt });
       }
+    }
+
+    if (session.blindTopic) {
+      if (!Array.isArray(session.blindTimesMs)) session.blindTimesMs = [];
+      session.blindTimesMs.push(elapsedMs);
+    }
+
+    session.lastConfidenceOutcome = null;
+    if (EDGE && typeof EDGE.recordConfidenceOutcome === "function") {
+      const confNid = q.nodeId || q.sourceNodeId || (session.node && session.node.id) || "";
+      const confTitle = q.sourceTitle || (session.node && session.node.title) || "";
+      session.lastConfidenceOutcome = EDGE.recordConfidenceOutcome(state, {
+        nodeId: confNid,
+        nodeTitle: confTitle,
+        prompt: q.prompt,
+        answer: q.answer,
+        confidence: session.confidence || "sure",
+        correct,
+        elapsedMs
+      });
     }
 
     if (correct) {
@@ -5302,8 +5970,9 @@
     recordStudyActivity(1);
     saveState();
     renderTopBar();
-    // Auto-advance ONLY on CORRECT answers; ALWAYS pause on WRONG answers so learner sees why!
-    if (correct && state.instantAdvance !== false) {
+    // Auto-advance ONLY on calibrated CORRECT answers (pause on wrong, blind-topic reveal, or lucky-guess callout!)
+    const shouldPauseForMetacognition = session.blindTopic || (session.lastConfidenceOutcome && session.lastConfidenceOutcome.tag === "lucky");
+    if (correct && state.instantAdvance !== false && !shouldPauseForMetacognition) {
       advanceQuiz();
       return;
     }
@@ -5318,6 +5987,8 @@
     } else {
       session.idx++;
       session.selectedOpt = null;
+      session.confidence = "sure";
+      session.lastConfidenceOutcome = null;
       session.checked = false;
       session.isCorrect = false;
       session.showHint = false;
@@ -5369,7 +6040,21 @@
       ? TUTOR.getNewlyUnlockedNodes(prevMastery, state.nodeMastery, DATA)
       : [];
 
-    if (session.mode === "srs" || session.mode === "mistakes") {
+    if (session.mode === "blind_interleave" && EDGE) {
+      EDGE.ensureEdgeState(state);
+      state.edgeStats.interleaveRuns = (state.edgeStats.interleaveRuns || 0) + 1;
+      state.edgeStats.interleaveBestPct = Math.max(state.edgeStats.interleaveBestPct || 0, pct);
+      if (Array.isArray(session.blindTimesMs) && session.blindTimesMs.length) {
+        const sorted = session.blindTimesMs.slice().sort((a, b) => a - b);
+        const mid = sorted[Math.floor(sorted.length / 2)];
+        const medSec = Math.max(1, Math.round(mid / 100) / 10);
+        session.blindMedianSec = medSec;
+        if (state.edgeStats.interleaveMedianSec == null || medSec < state.edgeStats.interleaveMedianSec) {
+          state.edgeStats.interleaveMedianSec = medSec;
+        }
+      }
+      markDailyStep("recall");
+    } else if (session.mode === "srs" || session.mode === "srs_review" || session.mode === "mistakes" || session.mode === "repair") {
       markDailyStep("recall");
     } else if (session.mode === "lesson" || session.mode === "drill" || session.mode === "skip" || session.mode === "prereq_testout") {
       markDailyStep("learn");
@@ -5402,6 +6087,10 @@
         : "Not Quite 80% Yet — Build the Foundation First";
     } else if (session.mode === "repair") {
       headline = "Hidden Cracks Patched";
+    } else if (session.mode === "blind_interleave") {
+      headline = pct >= 80
+        ? `Cold-Recognition Mastery (${session.blindMedianSec ? session.blindMedianSec + "s/Q" : pct + "%"})`
+        : `Blind Interleave Complete${session.blindMedianSec ? ` · ${session.blindMedianSec}s/Q Cold Speed` : ""}`;
     } else if (session.mode === "bruteforce") {
       headline = session.bfGoal > 0 && session.bfStreak >= session.bfGoal
         ? `Bruteforce ${session.bfGoal}-Streak Locked In`
@@ -5477,6 +6166,8 @@
               </button>
             ` : ""}
             ${canRate ? `<button type="button" class="ml-btn-secondary" id="ml-replay-drill">⚡ 5 Fresh Questions (Procedural)</button>` : ""}
+            ${canRate && EDGE ? `<button type="button" class="ml-btn-secondary" id="ml-victory-feynman">🧠 Feynman Check (+30 XP)</button>` : ""}
+            ${session.mode === "blind_interleave" ? `<button type="button" class="ml-btn-secondary" id="ml-replay-blind">🕶️ Another 10Q Blind Mix</button>` : ""}
             ${session.mode === "bruteforce" ? `<button type="button" class="ml-btn-secondary" id="ml-replay-bf">🔁 Bruteforce Again</button>` : ""}
             <button type="button" class="${session.mode === "prereq_testout" && session.testOutPassed ? "ml-btn-secondary" : "ml-btn-primary"}" id="ml-victory-done">Back to Skill Path →</button>
           </div>
@@ -5527,6 +6218,22 @@
       replayBtn.addEventListener("click", () => {
         AudioFX.playTap();
         startNodeSession(session.node.id, "drill");
+      });
+    }
+
+    const vicFeynBtn = document.getElementById("ml-victory-feynman");
+    if (vicFeynBtn && EDGE) {
+      vicFeynBtn.addEventListener("click", () => {
+        AudioFX.playTap();
+        openFeynmanModal(session.node.id);
+      });
+    }
+
+    const replayBlindBtn = document.getElementById("ml-replay-blind");
+    if (replayBlindBtn && EDGE) {
+      replayBlindBtn.addEventListener("click", () => {
+        AudioFX.playTap();
+        startBlindInterleaveSession(session.interleavePreset || "smart", 10);
       });
     }
 
@@ -5600,7 +6307,7 @@
       return;
     }
 
-    if (session && (session.phase === "search" || session.phase === "shop" || session.phase === "backup" || session.phase === "bf-picker")) {
+    if (session && (session.phase === "search" || session.phase === "shop" || session.phase === "backup" || session.phase === "bf-picker" || session.phase === "feynman")) {
       if (e.key === "Escape") {
         closeSession();
       }
@@ -5684,6 +6391,14 @@
           session.selectedOpt = q.options[idx];
           if (state.instantAdvance !== false) submitCurrentAnswer();
           else renderModal();
+        }
+      }
+      if (EDGE && !session.checked && tag !== "INPUT" && tag !== "TEXTAREA") {
+        const kLow = e.key.toLowerCase();
+        if (kLow === "z" || kLow === "x" || kLow === "c") {
+          AudioFX.playTap();
+          session.confidence = kLow === "z" ? "sure" : kLow === "x" ? "half" : "guess";
+          renderModal();
         }
       }
       return;
@@ -5994,8 +6709,43 @@
   };
 
   function bootApp() {
+    if (ONBOARDING) {
+      const scBoot = ONBOARDING.ensureStudioConfig(state);
+      if (scBoot.defaultFocusMin && !focusTimer.running) {
+        focusTimer.presetMin = scBoot.defaultFocusMin;
+        focusTimer.remainingSec = scBoot.defaultFocusMin * 60;
+      }
+      if (!new URLSearchParams(window.location.search).get("tab") && scBoot.landingTab && state.onboardingCompleted) {
+        state.activeTab = scBoot.landingTab;
+      }
+    }
     renderApp();
     checkIncomingSyncHash();
+
+    const finishBoot = () => {
+      if (ONBOARDING && (!state.onboardingCompleted || pendingBootIntro)) {
+        pendingBootIntro = false;
+        openStudioIntro("hero", false);
+        return;
+      }
+      if (pendingBootEdgeAction && EDGE) {
+        const act = pendingBootEdgeAction;
+        pendingBootEdgeAction = null;
+        if (act === "interleave") startBlindInterleaveSession("smart", 10);
+        else if (act === "illusions") startBlindInterleaveSession("illusions", 10);
+        else if (act === "feynman") {
+          const rec = getRecommendedNode();
+          openFeynmanModal(rec ? rec.id : (DATA.NODES[0] && DATA.NODES[0].id));
+        }
+      }
+    };
+
+    if (ONBOARDING && typeof ONBOARDING.runBootSplash === "function") {
+      ONBOARDING.runBootSplash(state, BUILD, finishBoot);
+    } else {
+      finishBoot();
+    }
+
     if (typeof window !== "undefined" && window.addEventListener) {
       window.addEventListener("hashchange", checkIncomingSyncHash);
     }

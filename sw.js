@@ -1,6 +1,6 @@
 // Primer Studio Offline-First Service Worker
 // Cache version is auto-stamped by verify_and_bundle.mjs
-const CACHE_NAME = "primer-studio-v3.1.0-086c98f";
+const CACHE_NAME = "primer-studio-v3.4.0-94f4395";
 
 const CORE_ASSETS = [
   "./",
@@ -26,8 +26,12 @@ const CORE_ASSETS = [
   "./everylingo_exam_mode.js",
   "./primer_whiteboard.js",
   "./primer_work_studio.js",
+  "./primer_math_physics_expansion.js",
+  "./primer_chem_bio_sci_expansion.js",
   "./primer_my_vault.js",
   "./primer_constellation.js",
+  "./primer_edge.js",
+  "./primer_onboarding.js",
   "./tutor.js",
   "./visualizers.js",
   "./everylingo_playgrounds.js",

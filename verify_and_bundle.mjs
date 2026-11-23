@@ -6,9 +6,44 @@ import crypto from "node:crypto";
 const dir = "/home/sibug/Math";
 
 const APP_RELEASE = {
-  version: "3.1.0",
-  codename: "Personal Daily Studio",
+  version: "3.4.0",
+  codename: "Deep Equations & Formulas Expansion",
   releases: [
+    {
+      version: "3.4.0",
+      codename: "Deep Equations & Formulas Expansion",
+      date: "2026-11-23",
+      changes: [
+        "Added 34 brand-new, deeply detailed, friendly formula-driven lessons across all 5 STEM domains (222 → 256 total lessons, +170 curated questions → 1,280 total, +1,360 procedural checks, 34 new 4-step offline-LaTeX worked examples & 100% 2D Skill Constellation wiring).",
+        "Math (+8): Parametric & Polar Curves (r, θ), Number Theory (Euclidean GCD, Bézout, Fermat & Euler φ), Euler's Formula & Hyperbolic Functions (cosh/sinh), Taylor/Maclaurin Series & L'Hôpital, Differential Equations (Cooling, Logistic & 2nd-Order ODEs), Eigenvalues & Projections, Vector Calculus (Gradient, Divergence, Curl & Gauss/Stokes), and Probability Distributions (Binomial, Poisson, Geometric & CLT).",
+        "Physics (+7): Wave Optics (Double-Slit, Diffraction, Thin Films, Malus & Brewster), Elasticity & Thermal Expansion (Young's Modulus & β ≈ 3α), Heat Transfer & Blackbody Radiation (Fourier, Stefan-Boltzmann T⁴ & Wien), RC/RL/RLC Impedance & Resonance, Special Relativity (Lorentz γ, Time Dilation, Length Contraction & E² = (pc)² + (mc²)²), Quantum Mechanics (de Broglie, Bohr Hydrogen, 1D Box & Heisenberg), and Real Fluids (Poiseuille r⁴ Law, Reynolds, Stokes & Capillarity).",
+        "Chemistry (+7), Biology (+6) & General/Earth/Space Science (+6): Buffers & Henderson-Hasselbalch, Electrochemistry (Nernst & Faraday), Ksp Solubility & Common-Ion, Hess's Law & Bond Enthalpies, Integrated Rate Laws & Arrhenius, Real Gases (Dalton, Graham & Van der Waals), Beer-Lambert & Nuclear Decay; Hardy-Weinberg & Chi-Square, Michaelis-Menten Enzyme Kinetics, Water Potential Ψ & Action Potentials, Quantitative Ecology (Mark-Recapture & Shannon H'), Immunology & Herd Immunity, Cardiorespiratory/Renal Physiology; Astrophysics (Parallax, Luminosity, Hubble & Black Holes), Radiometric Dating & Seismology, Lapse Rates/Coriolis/Tsunamis, Lab Error & Sig Figs, Planetary Albedo Balance, and Environmental Science (Rule of 70, IPAT & Eutrophication).",
+        "Expanded Memorize Vault (+42 formula & law cards), Classic Traps (+16 STEM traps → 91), Work Studio (+12 multi-step derivations → 36), and Offline LaTeX macros (\\Psi, \\chi, \\nu, \\sinh, \\cosh, \\gcd, \\lcm)."
+      ]
+    },
+    {
+      version: "3.3.0",
+      codename: "Flagship Intro & Modular Studio",
+      date: "2026-11-23",
+      changes: [
+        "Added Cinematic OLED Boot Splash Screen (#primer-boot-splash) with animated isometric Prism SVG stroke, ambient accent bloom, hairline load progress & 1-click/Esc skip (configurable: Cinematic 0.9s, Snappy 0.4s, or Skip Splash).",
+        "Launched Flagship Modern Intro & Deep Studio Configurator for brand-new users, after Full Reset, or anytime via the Topbar (✦), Sidebar ('Customize Studio'), or Ctrl+K.",
+        "Engineered full Clean-to-Bloated Workspace Customization: 4 flagship archetypes (Ultra-Clean Zen, Balanced Studio, Exam Grinder, Max Command Center) + 11 granular Dashboard/Chrome module switches, 12-tab Sidebar Visibility customizer, 7 Subject Library toggles, and a live Pro Telemetry Command HUD strip.",
+        "Added Live Real-Time Blueprint Preview & Aesthetic Tuning: all 4 Obsidian palettes, 8 curated accent swatches + custom Hex color picker, 4 geometric emblems, Spacing Density (Spacious/Balanced/Compact), Typography Scale (90%–120%), Corner Geometry (Sharp/Modern/Soft), Reduced Motion, and Sandbox Unlock-All-222 toggle."
+      ]
+    },
+    {
+      version: "3.2.0",
+      codename: "Unfair Advantage Engine",
+      date: "2026-11-23",
+      changes: [
+        "Launched Blind-Topic Interleaving ('No-Labels Cold Recognition'): pulls 10 unlabeled mixed questions across 5+ worlds (Smart 80/20, PH Exams Killer, STEM Gauntlet, CS/AI, Illusion Hunter) and reveals the hidden topic + cheat code only after you lock, tracking your Cold Recognition Speed.",
+        "Added Confidence Calibration & Mastery Illusion Detector in every quiz (Sure [Z] · 50/50 [X] · Guess [C]): catches High-Confidence Errors (Mastery Illusions), flags Lucky Guesses so they don't fool exam prep, and calculates personalized UPCAT R - 1/4W expected-value guessing advice.",
+        "Launched Feynman Active-Recall Studio ('Explain It Like I'm 12') for all 222 lessons (100% offline semantic anchor checker): grades plain-English intuition + examples, highlights blind spots, awards +30 XP, and auto-saves directly into My Vault Notes.",
+        "Added 80/20 ROI Bottleneck Sniper & Exam Countdown on the Dashboard: ranks unmastered skills by transitive downstream unlocks in the 222-node dependency graph, exam goal alignment & illusion urgency, with days-left daily pace tracking.",
+        "Added Offline WebAudio Focus Soundscapes (Brown Noise · 40Hz Gamma Focus · Rain) inside the Sidebar Focus Timer, Ctrl+K Power Commands ('>'), and KDE Desktop Shortcut quick actions."
+      ]
+    },
     {
       version: "3.1.0",
       codename: "Personal Daily Studio",
@@ -125,8 +160,12 @@ const codeForgeCode = fs.readFileSync(path.join(dir, "everylingo_code_forge.js")
 const examModeCode = fs.readFileSync(path.join(dir, "everylingo_exam_mode.js"), "utf8");
 const whiteboardCode = fs.readFileSync(path.join(dir, "primer_whiteboard.js"), "utf8");
 const workStudioCode = fs.readFileSync(path.join(dir, "primer_work_studio.js"), "utf8");
+const mathPhysExpCode = fs.readFileSync(path.join(dir, "primer_math_physics_expansion.js"), "utf8");
+const chemBioSciExpCode = fs.readFileSync(path.join(dir, "primer_chem_bio_sci_expansion.js"), "utf8");
 const myVaultCode = fs.readFileSync(path.join(dir, "primer_my_vault.js"), "utf8");
 const constellationCode = fs.readFileSync(path.join(dir, "primer_constellation.js"), "utf8");
+const edgeCode = fs.readFileSync(path.join(dir, "primer_edge.js"), "utf8");
+const onboardingCode = fs.readFileSync(path.join(dir, "primer_onboarding.js"), "utf8");
 const tutorCode = fs.readFileSync(path.join(dir, "tutor.js"), "utf8");
 const visualizersCode = fs.readFileSync(path.join(dir, "visualizers.js"), "utf8");
 const playgroundsCode = fs.readFileSync(path.join(dir, "everylingo_playgrounds.js"), "utf8");
@@ -152,8 +191,12 @@ vm.runInNewContext(codeForgeCode, context, { filename: "everylingo_code_forge.js
 vm.runInNewContext(examModeCode, context, { filename: "everylingo_exam_mode.js" });
 vm.runInNewContext(whiteboardCode, context, { filename: "primer_whiteboard.js" });
 vm.runInNewContext(workStudioCode, context, { filename: "primer_work_studio.js" });
+vm.runInNewContext(mathPhysExpCode, context, { filename: "primer_math_physics_expansion.js" });
+vm.runInNewContext(chemBioSciExpCode, context, { filename: "primer_chem_bio_sci_expansion.js" });
 vm.runInNewContext(myVaultCode, context, { filename: "primer_my_vault.js" });
 vm.runInNewContext(constellationCode, context, { filename: "primer_constellation.js" });
+vm.runInNewContext(edgeCode, context, { filename: "primer_edge.js" });
+vm.runInNewContext(onboardingCode, context, { filename: "primer_onboarding.js" });
 vm.runInNewContext(tutorCode, context, { filename: "tutor.js" });
 vm.runInNewContext(visualizersCode, context, { filename: "visualizers.js" });
 vm.runInNewContext(playgroundsCode, context, { filename: "everylingo_playgrounds.js" });
@@ -171,6 +214,8 @@ const WHITEBOARD = context.PRIMER_WHITEBOARD;
 const WORK_STUDIO = context.PRIMER_WORK_STUDIO;
 const MY_VAULT = context.PRIMER_MY_VAULT;
 const CONSTELLATION = context.PRIMER_CONSTELLATION;
+const EDGE = context.PRIMER_EDGE;
+const ONBOARDING = context.PRIMER_ONBOARDING;
 
 assert(DATA && typeof DATA === "object", "MATHLINGO_DATA missing");
 assert(LATEX && typeof LATEX.formatMath === "function" && typeof LATEX.getTutorialSlides === "function", "MATHLINGO_LATEX missing");
@@ -201,8 +246,8 @@ for (const v of VIZ.list) {
   assert(v.category && typeof v.category === "string", `Visualizer ${v.id} missing category`);
 }
 
-// 3. Validate 222 Nodes, 1,110 Curated Questions & 100% Registered Visualizers
-assert(Array.isArray(DATA.NODES) && DATA.NODES.length === 222, `Expected 222 nodes, got ${DATA.NODES?.length}`);
+// 3. Validate 256 Nodes, 1,280 Curated Questions & 100% Registered Visualizers
+assert(Array.isArray(DATA.NODES) && DATA.NODES.length === 256, `Expected 256 nodes, got ${DATA.NODES?.length}`);
 let totalQuestions = 0;
 const nodeIds = new Set();
 
@@ -230,8 +275,8 @@ for (const node of DATA.NODES) {
   }
 }
 
-// 4. Validate 75 Classic Traps
-assert(Array.isArray(DATA.GRADE12_TRAPS) && DATA.GRADE12_TRAPS.length === 75, `Expected 75 traps, got ${DATA.GRADE12_TRAPS?.length}`);
+// 4. Validate 91 Classic Traps
+assert(Array.isArray(DATA.GRADE12_TRAPS) && DATA.GRADE12_TRAPS.length === 91, `Expected 91 traps, got ${DATA.GRADE12_TRAPS?.length}`);
 for (const trap of DATA.GRADE12_TRAPS) {
   assert(trap.id && trap.title && trap.trapExpression && trap.wrongGuess && trap.rightAnswer, `Incomplete trap ${trap.id}`);
   assert(trap.whyItHappens && trap.quickRule && trap.quiz, `Missing quiz/why on ${trap.id}`);
@@ -241,8 +286,8 @@ for (const trap of DATA.GRADE12_TRAPS) {
   assert(unique.size === 4 && unique.has(trap.quiz.answer), `Trap quiz answer mismatch on ${trap.id}`);
 }
 
-// 5. Validate 40 Diagnostic Questions, 40 Badges, 191 Bruteforce Nodes, 34 Synthesis Bosses & Memorize Data
-assert(totalQuestions === 1110, `Expected 1110 curated questions, got ${totalQuestions}`);
+// 5. Validate 40 Diagnostic Questions, 40 Badges, 225 Bruteforce Nodes, 34 Synthesis Bosses & Memorize Data
+assert(totalQuestions === 1280, `Expected 1280 curated questions, got ${totalQuestions}`);
 assert(Array.isArray(DATA.DIAGNOSTIC_QUESTIONS) && DATA.DIAGNOSTIC_QUESTIONS.length === 40, `Expected 40 diagnostic questions, got ${DATA.DIAGNOSTIC_QUESTIONS?.length}`);
 for (const dq of DATA.DIAGNOSTIC_QUESTIONS) {
   assert(nodeIds.has(dq.targetNodeId), `Diagnostic targetNodeId missing: ${dq.targetNodeId}`);
@@ -254,7 +299,7 @@ for (const b of DATA.BADGES) {
   assert(b.id && b.title && b.description && b.emoji, `Incomplete badge schema on ${b.id}`);
 }
 const bfNodes = DATA.NODES.filter((n) => n.bruteforce === true);
-assert(bfNodes.length === 191, `Expected 191 selected bruteforce lessons, got ${bfNodes.length}`);
+assert(bfNodes.length === 225, `Expected 225 selected bruteforce lessons, got ${bfNodes.length}`);
 assert(Array.isArray(DATA.SYNTHESIS_PROBLEMS) && DATA.SYNTHESIS_PROBLEMS.length === 34, `Expected 34 synthesis problems, got ${DATA.SYNTHESIS_PROBLEMS?.length}`);
 for (const sp of DATA.SYNTHESIS_PROBLEMS) {
   assert(sp.id && sp.prompt && sp.answer && Array.isArray(sp.stepsChain) && sp.stepsChain.length >= 2, `Incomplete synthesis problem ${sp.id}`);
@@ -276,12 +321,12 @@ assert(!DATA.answersMatch("32", "3 2"), "answersMatch false positive on '32' ===
 assert(DATA.answersMatch("3 2", "3 2"), "answersMatch failed '3 2' === '3 2'");
 assert(DATA.answersMatch("3, 2", "3 2"), "answersMatch failed '3, 2' === '3 2'");
 assert(DATA.MEMORIZE_DATA.elements20.length === 20, "Expected 20 periodic elements");
-assert(DATA.MEMORIZE_DATA.scienceFormulas.length === 24, `Expected 24 science formula cards, got ${DATA.MEMORIZE_DATA.scienceFormulas.length}`);
+assert(DATA.MEMORIZE_DATA.scienceFormulas.length === 54, `Expected 54 science formula cards, got ${DATA.MEMORIZE_DATA.scienceFormulas.length}`);
 assert(DATA.MEMORIZE_DATA.phHistoryCards.length === 12, "Expected 12 PH History memorize cards");
 assert(DATA.MEMORIZE_DATA.filipinoCards.length === 10, "Expected 10 Filipino memorize cards");
 assert(DATA.MEMORIZE_DATA.codingCards.length === 36, `Expected 36 Coding/Tech memorize cards, got ${DATA.MEMORIZE_DATA.codingCards.length}`);
 assert(DATA.MEMORIZE_DATA.aiCards.length === 8, "Expected 8 AI memorize cards");
-assert(DATA.MEMORIZE_DATA.physicsLawsCards.length === 12, "Expected 12 Physics Laws & Formulas memorize cards");
+assert(DATA.MEMORIZE_DATA.physicsLawsCards.length === 24, `Expected 24 Physics Laws & Formulas memorize cards, got ${DATA.MEMORIZE_DATA.physicsLawsCards.length}`);
 assert(DATA.MEMORIZE_DATA.earthEconPhilCards.length === 18, "Expected 18 Earth/Econ/Phil memorize cards");
 assert(DATA.MEMORIZE_DATA.examPrepCards.length === 18, `Expected 18 Exam Prep memorize cards, got ${DATA.MEMORIZE_DATA.examPrepCards?.length}`);
 for (const [poolName, reqKeys] of [
@@ -359,7 +404,7 @@ console.log(`Verified procedural generator (${procCount} questions, all ${DATA.N
 assert(typeof MEM.openMultBruteforce === "function", "MEM.openMultBruteforce missing");
 assert(typeof MEM.isMultBfChoicesActive === "function", "MEM.isMultBfChoicesActive missing");
 const graphKeys = Object.keys(TUTOR.DEPENDENCY_GRAPH || {});
-assert(graphKeys.length === 222, `Expected 222 nodes in TUTOR.DEPENDENCY_GRAPH, got ${graphKeys.length}`);
+assert(graphKeys.length === 256, `Expected 256 nodes in TUTOR.DEPENDENCY_GRAPH, got ${graphKeys.length}`);
 for (const nid of nodeIds) {
   const meta = TUTOR.DEPENDENCY_GRAPH[nid];
   assert(meta && Array.isArray(meta.prereqs) && typeof meta.elo === "number", `Invalid DEPENDENCY_GRAPH entry for ${nid}`);
@@ -391,7 +436,7 @@ assert(newlyAfterCount.includes("even-odd-skip") && newlyAfterCount.includes("ma
 const bridgeTxt = TUTOR.getBridgeReason("derivatives-speedometer", "ai-training-loss-backprop", DATA);
 assert(typeof bridgeTxt === "string" && bridgeTxt.toLowerCase().includes("gradient"), `Bridge reason failed: ${bridgeTxt}`);
 const treeSum = TUTOR.getSkillTreeSummary(emptyTreeState, DATA);
-assert(treeSum.total === 222 && treeSum.ready >= 10 && treeSum.locked > 175 && treeSum.ready + treeSum.locked + treeSum.mastered === 222, `Skill tree summary mismatch: ${JSON.stringify(treeSum)}`);
+assert(treeSum.total === 256 && treeSum.ready >= 10 && treeSum.locked > 200 && treeSum.ready + treeSum.locked + treeSum.mastered === 256, `Skill tree summary mismatch: ${JSON.stringify(treeSum)}`);
 assert(TUTOR.classifyNodeQuadrant({ attempts: 5, correct: 5, avgMs: 9000, currentStreak: 4 }, 2, "exam-mechanical-technical-reasoning").code === "automatic", "exam_mastery speed threshold failed");
 assert(TUTOR.classifyNodeQuadrant({ attempts: 5, correct: 5, avgMs: 9000, currentStreak: 4 }, 2, "bio-cells-organelles").code === "automatic", "bio speed threshold failed");
 assert(TUTOR.classifyNodeQuadrant({ attempts: 5, correct: 5, avgMs: 9000, currentStreak: 4 }, 2, "ai-transformers-self-attention").code === "automatic", "ai speed threshold failed");
@@ -570,7 +615,7 @@ assert(nmatGrade.nmatScaled >= 700 && nmatGrade.nmatScaled <= 800 && nmatGrade.n
 console.log(`Verified Exam Mode Studio: ${EXAM_MODE.EXAMS.length} tailored blueprints (${totalCustomExamQs} exam-crafted items + zero-dup paper builder across quick/half/full + UPCAT R-0.25W/UPG, CSE 80% gate & NMAT 200-800 PR verified).`);
 
 // 7c. Verify Primer v3.0.0 Flagship Modules (Work Studio, My Vault, Skill Constellation, PWA & Print)
-assert(WORK_STUDIO.PROBLEMS.length === 24, `Expected 24 Work Studio curated derivations, got ${WORK_STUDIO.PROBLEMS.length}`);
+assert(WORK_STUDIO.PROBLEMS.length === 36, `Expected 36 Work Studio curated derivations, got ${WORK_STUDIO.PROBLEMS.length}`);
 for (const wp of WORK_STUDIO.PROBLEMS) {
   assert(wp.id && wp.track && wp.title && wp.given && wp.goal, `Incomplete Work Studio problem ${wp.id}`);
   assert(nodeIds.has(wp.linkedNodeId), `Work Studio problem ${wp.id} references unknown linkedNodeId ${wp.linkedNodeId}`);
@@ -720,7 +765,82 @@ const dailyPlanTest = PERSONAL.buildDailySessionPlan({ dailyChecklist: {}, mista
 assert(dailyPlanTest.steps.length === 3 && dailyPlanTest.nextStep, "buildDailySessionPlan did not return 3 steps");
 assert(MEM.GYM_MODES.some((g) => g.id === PERSONAL.pickGymModeForWorld("physics")), "pickGymModeForWorld returned unregistered gym mode");
 
-console.log(`Verified Primer v3.1.0 Personal Daily Studio: ${WORK_STUDIO.PROBLEMS.length} derivations + 3 procedural generators, My Vault SM-2/Exam-Missed importer, Smart Merge local sync, Daily Session + Focus Timer, ${constLayout.nodes.length}-node/${constLayout.edges.length}-edge 2D Constellation, Whiteboard, PWA & @media print.`);
+// v3.2.0 Unfair Advantage Engine (PRIMER_EDGE) Empirical Verification
+assert(EDGE && typeof EDGE === "object", "PRIMER_EDGE missing");
+const edgeTestState = EDGE.ensureEdgeState({ nodeMastery: {}, mistakes: [] });
+const illOut = EDGE.recordConfidenceOutcome(edgeTestState, { nodeId: "algebra-scale", nodeTitle: "Algebra Scale", prompt: "2x=10", answer: "5", confidence: "sure", correct: false });
+assert(illOut.tag === "illusion" && edgeTestState.confidenceLog.illusions.length === 1, "Mastery Illusion detection failed");
+const luckyOut = EDGE.recordConfidenceOutcome(edgeTestState, { nodeId: "slope-lines", nodeTitle: "Slope", prompt: "rise/run", answer: "2", confidence: "guess", correct: true });
+assert(luckyOut.tag === "lucky" && edgeTestState.confidenceLog.luckyHits.length === 1, "Lucky guess logging failed");
+for (let k = 0; k < 4; k++) {
+  EDGE.recordConfidenceOutcome(edgeTestState, { nodeId: "make-10-addition", nodeTitle: "Make 10", prompt: `p${k}`, answer: "10", confidence: "sure", correct: true });
+}
+const calMetrics = EDGE.getCalibrationMetrics(edgeTestState);
+assert(calMetrics.total === 6 && typeof calMetrics.calibrationScore === "number" && calMetrics.calibrationScore >= 0 && calMetrics.calibrationScore <= 100, "Calibration score calculation failed");
+
+// Blind Interleave Verification across diverse worlds
+for (const p of EDGE.INTERLEAVE_PRESETS) {
+  const mix = EDGE.buildBlindInterleave(edgeTestState, DATA, TUTOR, p.id, 10);
+  assert(mix && mix.questions.length === 10, `Blind Interleave preset ${p.id} did not produce 10 questions`);
+  assert(mix.distinctWorlds >= 4, `Blind Interleave preset ${p.id} lacked world diversity (${mix.distinctWorlds})`);
+  for (const mq of mix.questions) {
+    assert(mq.prompt && mq.sourceNodeId && mq.sourceTitle, `Blind Interleave question missing source metadata in ${p.id}`);
+  }
+}
+
+// Feynman Active-Recall Verification across ALL 222 nodes
+for (const n of DATA.NODES) {
+  const anchors = EDGE.extractNodeAnchors(n);
+  assert(anchors.length >= 2, `Feynman anchor extraction too sparse for node ${n.id}`);
+}
+const sampleFeynNode = DATA.NODES.find((n) => n.id === "algebra-scale") || DATA.NODES[0];
+const sampleAnchors = EDGE.extractNodeAnchors(sampleFeynNode);
+const goodFeyn = EDGE.evaluateFeynman(sampleFeynNode, `Imagine a scale where both sides stay balanced because ${sampleAnchors.map((a) => a.label).join(" ")} for example 2x = 10 means x = 5.`);
+const weakFeyn = EDGE.evaluateFeynman(sampleFeynNode, "idk");
+assert(goodFeyn.score >= 70 && goodFeyn.passed, `Feynman evaluator scored solid explanation too low (${goodFeyn.score})`);
+assert(weakFeyn.score <= 25 && !weakFeyn.passed, `Feynman evaluator scored empty/weak explanation too high (${weakFeyn.score})`);
+
+// 80/20 ROI Bottleneck Sniper & Exam Countdown Verification
+edgeTestState.examTarget = { goalId: "dost_sei", label: "", dateIso: "2027-01-15" };
+const roiRes = EDGE.computeRoiTargets(edgeTestState, DATA, TUTOR, 4);
+assert(roiRes.targets.length === 4 && roiRes.totalInGoal > 20 && roiRes.daysLeft !== null && roiRes.dailyQuota >= 1, "80/20 ROI Bottleneck Sniper failed");
+
+// Edge Smart Merge Verification
+const mergedEdge = EDGE.mergeEdgeState(edgeTestState, {
+  confidenceLog: { sureRight: 10, sureWrong: 0, halfRight: 0, halfWrong: 0, guessRight: 0, guessWrong: 0, illusions: [], luckyHits: [] },
+  feynmanVerified: { "algebra-scale": { score: 88, text: "Balance both sides", updatedAt: 500 } },
+  edgeStats: { interleaveRuns: 3, interleaveBestPct: 90, interleaveMedianSec: 6.4 }
+});
+assert(mergedEdge.confidenceLog.sureRight === 10 && mergedEdge.feynmanVerified["algebra-scale"].score === 88 && mergedEdge.edgeStats.interleaveRuns === 3, "Edge Smart Merge failed");
+
+// v3.3.0 Flagship Splash, Intro & Modular Studio Configurator Verification
+assert(ONBOARDING && typeof ONBOARDING === "object", "PRIMER_ONBOARDING missing");
+const freshState = { xp: 0, nodeMastery: {} };
+ONBOARDING.ensureStudioConfig(freshState);
+assert(freshState.onboardingCompleted === false, "Fresh profile should open Flagship Intro (onboardingCompleted=false)");
+const veteranState = { xp: 120, nodeMastery: { "algebra-scale": 2 } };
+ONBOARDING.ensureStudioConfig(veteranState);
+assert(veteranState.onboardingCompleted === true, "Existing learner with progress should auto-migrate onboardingCompleted=true");
+
+const archScores = {};
+for (const arch of ONBOARDING.ARCHETYPES) {
+  const s = { ownedThemes: ["noir"], ownedAccessories: ["none"] };
+  ONBOARDING.applyArchetypeToState(s, arch.id);
+  const bm = ONBOARDING.computeBloatMetrics(s);
+  archScores[arch.id] = bm.score;
+  assert(!s.studioConfig.hiddenTabs.includes("path"), `Archetype ${arch.id} must never hide Dashboard tab`);
+}
+assert(
+  archScores.zen < archScores.balanced &&
+  archScores.balanced < archScores.exam_grinder &&
+  archScores.exam_grinder < archScores.command_center,
+  `Archetype bloat progression invalid: ${JSON.stringify(archScores)}`
+);
+const guardedState = { studioConfig: { hiddenTabs: ["path", "gym"], fontScale: 110, accentCustom: "#78b4f5" } };
+ONBOARDING.ensureStudioConfig(guardedState);
+assert(!guardedState.studioConfig.hiddenTabs.includes("path") && guardedState.studioConfig.hiddenTabs.includes("gym"), "hiddenTabs sanitizer failed");
+
+console.log(`Verified Primer v3.3.0 Flagship Intro & Modular Studio: Boot Splash + 4 Archetypes (Zen ${archScores.zen}% -> Balanced ${archScores.balanced}% -> Exam Grinder ${archScores.exam_grinder}% -> Max Command Center ${archScores.command_center}%), 11 granular module switches, 12-tab customizer, Blind Interleave, Calibration, Feynman (${DATA.NODES.length} nodes), 80/20 ROI & standalone bundle.`);
 
 // 8. Check CSP, Zero :root, and ZERO Legacy Neon Hexes across all source files!
 assert(!/:root\s*\{/.test(styles), "styles.css must not declare local fallbacks on :root");
@@ -743,8 +863,12 @@ const allFiles = [
   ["everylingo_exam_mode.js", examModeCode],
   ["primer_whiteboard.js", whiteboardCode],
   ["primer_work_studio.js", workStudioCode],
+  ["primer_math_physics_expansion.js", mathPhysExpCode],
+  ["primer_chem_bio_sci_expansion.js", chemBioSciExpCode],
   ["primer_my_vault.js", myVaultCode],
   ["primer_constellation.js", constellationCode],
+  ["primer_edge.js", edgeCode],
+  ["primer_onboarding.js", onboardingCode],
   ["tutor.js", tutorCode],
   ["visualizers.js", visualizersCode],
   ["everylingo_playgrounds.js", playgroundsCode],
@@ -823,6 +947,7 @@ const bundledHtml = `<!DOCTYPE html>
   <style>${standaloneCss}</style>
 </head>
 <body>
+  <div id="primer-boot-splash" class="pr-boot-splash" aria-label="Loading Primer Studio"></div>
   <div class="ml-app-shell">
     <aside id="ml-sidebar" class="ml-sidebar" aria-label="Studio sidebar">
       <div id="ml-brand-slot" class="ml-sidebar-brand"></div>
@@ -887,10 +1012,22 @@ ${whiteboardCode}
 ${workStudioCode}
   <\/script>
   <script>
+${mathPhysExpCode}
+  <\/script>
+  <script>
+${chemBioSciExpCode}
+  <\/script>
+  <script>
 ${myVaultCode}
   <\/script>
   <script>
 ${constellationCode}
+  <\/script>
+  <script>
+${edgeCode}
+  <\/script>
+  <script>
+${onboardingCode}
   <\/script>
   <script>
 ${tutorCode}
