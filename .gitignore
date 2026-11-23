@@ -1,0 +1,17 @@
+# Large / personal source directories (kept local, excluded from web deploy & git bloat)
+bad_apple/
+handouts sources/
+
+# OS & editor artifacts
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Logs & temporary files
+*.log
+npm-debug.log*
+node_modules/
+.cache/
+.qa-tmp/

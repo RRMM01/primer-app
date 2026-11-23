@@ -1,0 +1,773 @@
+{
+  "generatedBy": "verify_and_bundle.mjs",
+  "brand": "Primer Studio",
+  "build": {
+    "version": "3.0.0",
+    "codename": "Primer Studio",
+    "buildHash": "79108ea",
+    "builtAt": "2026-11-22 18:18"
+  },
+  "counts": {
+    "worlds": 25,
+    "nodes": 222,
+    "curatedQuestions": 1110,
+    "playgrounds": 28,
+    "codeForgeQuests": 36,
+    "workStudioDerivations": 24,
+    "examBlueprints": 10,
+    "traps": 75,
+    "synthesisBosses": 34,
+    "diagnosticQuestions": 40,
+    "badges": 40,
+    "bruteforceNodes": 191,
+    "gymModes": 32,
+    "tutorPresets": 19,
+    "constellationEdges": 349
+  },
+  "files": [
+    {
+      "file": "styles.css",
+      "lines": 10836,
+      "kb": 207
+    },
+    {
+      "file": "curriculum.js",
+      "lines": 2011,
+      "kb": 135
+    },
+    {
+      "file": "science_curriculum.js",
+      "lines": 1106,
+      "kb": 87
+    },
+    {
+      "file": "exam_expansion.js",
+      "lines": 2082,
+      "kb": 135
+    },
+    {
+      "file": "latex_tutorial.js",
+      "lines": 1003,
+      "kb": 58
+    },
+    {
+      "file": "shs_handouts_expansion.js",
+      "lines": 2188,
+      "kb": 241
+    },
+    {
+      "file": "everylingo_humanities_expansion.js",
+      "lines": 1744,
+      "kb": 183
+    },
+    {
+      "file": "everylingo_tech_ai_expansion.js",
+      "lines": 1639,
+      "kb": 180
+    },
+    {
+      "file": "everylingo_stem_laws_expansion.js",
+      "lines": 1106,
+      "kb": 114
+    },
+    {
+      "file": "everylingo_earth_econ_phil_expansion.js",
+      "lines": 1696,
+      "kb": 260
+    },
+    {
+      "file": "everylingo_coding_engine.js",
+      "lines": 1831,
+      "kb": 72
+    },
+    {
+      "file": "everylingo_coding_curriculum.js",
+      "lines": 2779,
+      "kb": 220
+    },
+    {
+      "file": "everylingo_exam_curriculum.js",
+      "lines": 1509,
+      "kb": 138
+    },
+    {
+      "file": "everylingo_code_forge.js",
+      "lines": 2554,
+      "kb": 152
+    },
+    {
+      "file": "everylingo_exam_mode.js",
+      "lines": 3577,
+      "kb": 170
+    },
+    {
+      "file": "primer_whiteboard.js",
+      "lines": 663,
+      "kb": 23
+    },
+    {
+      "file": "primer_work_studio.js",
+      "lines": 1802,
+      "kb": 86
+    },
+    {
+      "file": "primer_my_vault.js",
+      "lines": 1446,
+      "kb": 58
+    },
+    {
+      "file": "primer_constellation.js",
+      "lines": 933,
+      "kb": 34
+    },
+    {
+      "file": "tutor.js",
+      "lines": 2008,
+      "kb": 106
+    },
+    {
+      "file": "visualizers.js",
+      "lines": 1722,
+      "kb": 78
+    },
+    {
+      "file": "everylingo_playgrounds.js",
+      "lines": 3051,
+      "kb": 185
+    },
+    {
+      "file": "memorize.js",
+      "lines": 3280,
+      "kb": 158
+    },
+    {
+      "file": "app.js",
+      "lines": 5218,
+      "kb": 219
+    }
+  ],
+  "anchors": {
+    "app": {
+      "escapeHtml": 238,
+      "renderTopBar": 584,
+      "renderPathView": 849,
+      "renderSynthesisCardHtml": 1726,
+      "renderTrapsView": 1786,
+      "renderLabView": 1981,
+      "renderCheatSheetView": 2068,
+      "renderSearchModal": 2750,
+      "renderModal": 3425,
+      "keydown": 4831
+    },
+    "tutor": {
+      "DEPENDENCY_GRAPH": 4,
+      "TAG_LABELS": 298,
+      "generateStudyPlan": 951
+    },
+    "memorize": {
+      "GYM_MODES": 48,
+      "renderMemorizeView": 912,
+      "renderGymView": 2889
+    },
+    "latex": {
+      "formatInner": 161,
+      "formatMath": 441
+    }
+  },
+  "worlds": [
+    {
+      "id": "nursery",
+      "order": 1,
+      "title": "Era 1: Foundations & Number Sense",
+      "nodes": [
+        "counting-subitizing",
+        "even-odd-skip",
+        "make-10-addition",
+        "distance-subtraction",
+        "zero-base10"
+      ]
+    },
+    {
+      "id": "elementary",
+      "order": 2,
+      "title": "Era 2: Elementary Math",
+      "nodes": [
+        "rect-multiplication",
+        "reverse-division",
+        "primes-factors-lcm",
+        "fractions-trenchcoat",
+        "decimals-percents",
+        "pemdas-grammar",
+        "perimeter-area-volume",
+        "word-problems-translator",
+        "ratios-proportions-rates",
+        "math-estimation-mental-shortcuts"
+      ]
+    },
+    {
+      "id": "junior",
+      "order": 3,
+      "title": "Era 3: Junior High (Grades 7–9)",
+      "nodes": [
+        "negatives-flip",
+        "squares-cubes-roots",
+        "exponents-roots",
+        "algebra-scale",
+        "systems-equations",
+        "factoring-foil",
+        "slope-lines",
+        "geometry-pythagoras",
+        "abs-value-inequalities",
+        "math-set-theory-venn-logic"
+      ]
+    },
+    {
+      "id": "senior",
+      "order": 4,
+      "title": "Era 4: Senior High (Grades 10–12)",
+      "nodes": [
+        "quadratics-symmetry",
+        "complex-imaginary-i",
+        "functions-shifting",
+        "logarithms-unlocked",
+        "trig-unit-circle",
+        "conics-distance-circles",
+        "sequences-sigma",
+        "stats-normal-curve",
+        "polynomials-remainder-div",
+        "rational-radical-equations",
+        "circles-3d-geometry",
+        "permutations-combinatorics-piecewise",
+        "math-trig-identities-laws",
+        "math-financial-compound-annuities",
+        "math-inequalities-intervals-sign-charts",
+        "math-stats-correlation-regression-zscore",
+        "math-convex-concave-polygons-curves",
+        "math-binomial-pascal-series-formulas"
+      ]
+    },
+    {
+      "id": "college",
+      "order": 5,
+      "title": "Era 5: College Math",
+      "nodes": [
+        "limits-potholes",
+        "derivatives-speedometer",
+        "chain-product-optimization",
+        "integrals-area",
+        "calc3-partials-ode",
+        "linear-algebra-vectors",
+        "discrete-logic-mod",
+        "probability-bayes",
+        "matrices-3d-transformations",
+        "math-vectors-3d-dot-cross",
+        "math-integration-techniques",
+        "math-game-theory-graph-theory"
+      ]
+    },
+    {
+      "id": "physics",
+      "order": 6,
+      "title": "Physics: Mechanics, E&M, Optics & Modern",
+      "nodes": [
+        "physics-units-vectors",
+        "physics-kinematics",
+        "physics-newton-forces",
+        "physics-energy-momentum",
+        "physics-waves-electricity",
+        "physics-modern-relativity",
+        "physics-projectiles-circular-torque",
+        "physics-thermo-fluids",
+        "physics-optics-magnetism",
+        "phys2-coulomb-electric-field",
+        "phys2-electric-potential",
+        "phys2-capacitors-dielectrics",
+        "phys2-resistivity-ohms-dc",
+        "phys2-kirchhoff-circuits",
+        "phys2-magnetism-lorentz-sources",
+        "physics-universal-gravitation-kepler",
+        "physics-rotational-dynamics-angular",
+        "physics-shm-pendulums-resonance",
+        "physics-sound-doppler-waves",
+        "physics-thermo-four-laws-engines",
+        "physics-faraday-induction-ac-maxwell",
+        "physics-quantum-photoelectric-nuclear",
+        "physics-mirrors-lenses-concave-convex",
+        "physics-fluids-buoyancy-bernoulli"
+      ]
+    },
+    {
+      "id": "chemistry",
+      "order": 7,
+      "title": "Chemistry: Atoms, Bonds, IMFs, Kinetics & Thermo",
+      "nodes": [
+        "chem-atoms-periodic",
+        "chem-bonds-polarity",
+        "chem-moles-stoich",
+        "chem-balancing-reactions",
+        "chem-acids-bases-ph",
+        "chem-gas-thermo-organic",
+        "chem-electron-config-trends",
+        "chem-vsepr-lewis-shapes",
+        "chem-equilibrium-redox-kinetics",
+        "chem2-organic-polymers",
+        "chem2-imf-phases",
+        "chem2-solutions-concentration",
+        "chem2-colligative-properties",
+        "chem2-kinetics-ratelaw",
+        "chem2-thermo-entropy-gibbs"
+      ]
+    },
+    {
+      "id": "biology",
+      "order": 8,
+      "title": "Biology: Cells, Genetics, Biotech, Evolution & Systems",
+      "nodes": [
+        "bio-cells-organelles",
+        "bio-osmosis-transport",
+        "bio-energy-photosynthesis",
+        "bio-dna-rna-proteins",
+        "bio-mitosis-meiosis-genetics",
+        "bio-evolution-ecology",
+        "bio-macromolecules-enzymes",
+        "bio-pedigrees-sex-linked",
+        "bio-human-physiology",
+        "bio-taxonomy-plants-viruses",
+        "bio2-recombinant-dna",
+        "bio2-evolution-mechanisms",
+        "bio2-taxonomy-cladistics",
+        "bio2-plant-animal-systems"
+      ]
+    },
+    {
+      "id": "verbal-logic",
+      "order": 9,
+      "title": "Verbal & Logic: Grammar, Reading & Deduction",
+      "nodes": [
+        "verbal-grammar-syntax",
+        "verbal-reading-inference",
+        "verbal-analogies-vocab",
+        "logic-deduction-abstract"
+      ]
+    },
+    {
+      "id": "wica",
+      "order": 10,
+      "title": "WICA: Work Immersion, Career & Enterprise",
+      "nodes": [
+        "wica-exits-transition",
+        "wica-21st-work-4ir",
+        "wica-growth-ethics",
+        "wica-jobs-resume-interview",
+        "wica-research-pm-entrep"
+      ]
+    },
+    {
+      "id": "persdev",
+      "order": 11,
+      "title": "PersDev: Brain, Emotions, Identity & Leadership",
+      "nodes": [
+        "persdev-self-whole-person",
+        "persdev-adolescence-stress",
+        "persdev-brain-emotions-eq",
+        "persdev-relationships-leadership"
+      ]
+    },
+    {
+      "id": "wellness",
+      "order": 12,
+      "title": "Wellness: Fitness, Money & Purposeful Legacy",
+      "nodes": [
+        "wlns-fitness-excellence",
+        "wlns-money-literacy",
+        "wlns-leadership-legacy-godpreneur"
+      ]
+    },
+    {
+      "id": "ph_history",
+      "order": 13,
+      "title": "Philippine History, Civics & World Landmarks",
+      "nodes": [
+        "ph-precolonial-spanish",
+        "ph-propaganda-katipunan-rev",
+        "ph-american-japanese-ww2",
+        "ph-martial-law-edsa-modern",
+        "ph-constitution-three-branches",
+        "ph-bill-of-rights-civics",
+        "ph-local-gov-taxes-civic-life",
+        "world-history-revolutions-civ"
+      ]
+    },
+    {
+      "id": "filipino",
+      "order": 14,
+      "title": "Filipino: Wika, Gramatika at Pagbasa",
+      "nodes": [
+        "fil-ponolohiya-baybay-diin",
+        "fil-bahagi-ng-pananalita",
+        "fil-ng-nang-din-rin-traps",
+        "fil-tayutay-idyoma-sawikain",
+        "fil-pagbasa-panitikan-uri",
+        "fil-panitikang-pilipino-obra"
+      ]
+    },
+    {
+      "id": "abstract_shapes",
+      "order": 15,
+      "title": "Abstract Shapes & Spatial Reasoning",
+      "nodes": [
+        "abs-rotations-reflections",
+        "abs-shape-sequences-progression",
+        "abs-raven-matrices-logic",
+        "abs-odd-one-out-analogies",
+        "abs-3d-cube-folding-nets",
+        "abs-paper-folding-spatial-views"
+      ]
+    },
+    {
+      "id": "ai_ml",
+      "order": 16,
+      "title": "How AI Works: Neural Nets, LLMs & Agents",
+      "nodes": [
+        "ai-basics-rules-vs-ml",
+        "ai-perceptron-neural-nets",
+        "ai-training-loss-backprop",
+        "ai-overfitting-eval-metrics",
+        "ai-tokens-embeddings-vectors",
+        "ai-transformers-self-attention",
+        "ai-llm-generation-sampling",
+        "ai-rag-agents-prompt-safety"
+      ]
+    },
+    {
+      "id": "web_coding",
+      "order": 17,
+      "title": "Web Dev: HTML, CSS & JavaScript Basics",
+      "nodes": [
+        "code-html-anatomy-semantics",
+        "code-html-forms-tables-a11y",
+        "code-css-selectors-cascade",
+        "code-css-box-model-units",
+        "code-css-flexbox-grid-responsive",
+        "code-js-basics-dom-events",
+        "code-browser-rendering-http"
+      ]
+    },
+    {
+      "id": "python_tech",
+      "order": 18,
+      "title": "Python, Algorithms & Modern Tech Foundations",
+      "nodes": [
+        "py-variables-types-io",
+        "py-conditionals-loops",
+        "py-lists-dicts-slicing",
+        "py-functions-scope-oop",
+        "tech-binary-bits-hex-memory",
+        "tech-algorithms-bigo-ds",
+        "tech-git-cli-databases-apis",
+        "tech-networking-internet-ip",
+        "tech-cybersecurity-crypto-cloud"
+      ]
+    },
+    {
+      "id": "earth_space",
+      "order": 19,
+      "title": "Earth, Space & Climate Science",
+      "nodes": [
+        "earth-plate-tectonics-faults",
+        "earth-volcanoes-earthquakes-hazards",
+        "earth-minerals-rock-cycle",
+        "earth-atmosphere-typhoons-monsoons",
+        "earth-geologic-time-fossils",
+        "earth-moon-phases-seasons-tides",
+        "earth-climate-greenhouse-energy"
+      ]
+    },
+    {
+      "id": "econ_finance",
+      "order": 20,
+      "title": "Economics, Business & PH Finance",
+      "nodes": [
+        "econ-scarcity-opportunity-cost",
+        "econ-supply-demand-elasticity",
+        "econ-gdp-inflation-bsp",
+        "econ-market-structures",
+        "econ-financial-statements",
+        "econ-ph-personal-finance"
+      ]
+    },
+    {
+      "id": "philosophy_logic",
+      "order": 21,
+      "title": "Philosophy, Critical Thinking & Study Science",
+      "nodes": [
+        "phil-logical-fallacies",
+        "phil-deductive-inductive-abductive",
+        "phil-ethics-frameworks",
+        "phil-cognitive-biases",
+        "phil-scientific-method-pseudoscience",
+        "phil-stoicism-existentialism",
+        "phil-meta-learning-memory"
+      ]
+    },
+    {
+      "id": "dsa_mastery",
+      "order": 22,
+      "title": "DSA: Data Structures, Recursion & Algorithms",
+      "nodes": [
+        "dsa-arrays-hashing-two-pointers",
+        "dsa-stacks-queues-deques",
+        "dsa-linked-lists-pointers",
+        "dsa-recursion-call-stack",
+        "dsa-binary-search-sorting",
+        "dsa-trees-bst-heaps",
+        "dsa-graphs-bfs-dfs-dijkstra",
+        "dsa-dp-memoization-sliding-window"
+      ]
+    },
+    {
+      "id": "backend_sql_dev",
+      "order": 23,
+      "title": "Backend Engineering: SQL, REST APIs, Git & DevOps",
+      "nodes": [
+        "be-sql-select-where-order",
+        "be-sql-joins-groupby-agg",
+        "be-sql-indexes-acid-transactions",
+        "be-rest-apis-json-status-codes",
+        "be-auth-hashing-jwt-oauth",
+        "be-linux-cli-pipes-permissions",
+        "be-git-internals-branching-rebase",
+        "be-docker-ci-system-design"
+      ]
+    },
+    {
+      "id": "js_ts_architecture",
+      "order": 24,
+      "title": "Modern JS, TypeScript & Clean Architecture",
+      "nodes": [
+        "js-closures-scope-hoisting",
+        "js-functional-map-filter-reduce",
+        "js-async-promises-event-loop",
+        "js-fetch-dom-state-components",
+        "ts-types-interfaces-generics",
+        "code-oop-solid-design-patterns",
+        "code-testing-tdd-debugging",
+        "code-memory-concurrency-race-conditions"
+      ]
+    },
+    {
+      "id": "exam_mastery",
+      "order": 25,
+      "title": "PH Exams: DOST, UPCAT, CSE & NMAT Mastery",
+      "nodes": [
+        "exam-mechanical-technical-reasoning",
+        "exam-astronomy-stars-cosmos",
+        "exam-data-interpretation-experiments",
+        "exam-number-letter-series-patterns",
+        "exam-word-problems-work-mixture-motion",
+        "exam-paragraph-org-error-spotting",
+        "exam-nmat-perceptual-acuity",
+        "exam-nmat-social-science-psych-soc",
+        "exam-cse-ra6713-civics-env-laws",
+        "exam-cse-clerical-filing-vocabulary"
+      ]
+    }
+  ],
+  "playgrounds": [
+    {
+      "id": "numberLineMake10",
+      "category": "math",
+      "title": "1. Make-10 & Distance Subtraction"
+    },
+    {
+      "id": "numberPatternSieve",
+      "category": "math",
+      "title": "2. 2·4·6·8, Odd/Even, Primes & Squares"
+    },
+    {
+      "id": "rectangleMultiplier",
+      "category": "math",
+      "title": "3. Chocolate-Bar Area Multiplier"
+    },
+    {
+      "id": "fractionPizzaLab",
+      "category": "math",
+      "title": "4. Fraction Bars & Magic % Swap"
+    },
+    {
+      "id": "algebraBalanceScale",
+      "category": "math",
+      "title": "5. Algebra Balance Scale"
+    },
+    {
+      "id": "unitCircleAndGraphLab",
+      "category": "math",
+      "title": "6. Unit Circle & Parabola Shifter"
+    },
+    {
+      "id": "calculusSurferLab",
+      "category": "math",
+      "title": "7. Calculus Speedometer & Integral Area"
+    },
+    {
+      "id": "physicsCircuitAndMotionLab",
+      "category": "physics",
+      "title": "8. Physics Ohm's Circuit & F = ma"
+    },
+    {
+      "id": "chemistryAtomPhLab",
+      "category": "stem",
+      "title": "9. Chemistry Bohr Atom & pH Log Scale"
+    },
+    {
+      "id": "biologyDnaPunnettLab",
+      "category": "stem",
+      "title": "10. Biology DNA → mRNA & Punnett FOIL"
+    },
+    {
+      "id": "electroMagLab",
+      "category": "physics",
+      "title": "11. PHYS2 Capacitors, Coulomb & Cyclotron"
+    },
+    {
+      "id": "thermoPhaseLab",
+      "category": "stem",
+      "title": "12. CHEM2 Gibbs ΔG & Colligative Window"
+    },
+    {
+      "id": "geometryLogicLab",
+      "category": "math",
+      "title": "13. Vectors (Dot/Cross) & Logic Truth Lab"
+    },
+    {
+      "id": "aiNeuralLab",
+      "category": "ai_code",
+      "title": "14. AI Neuron (ReLU), LLM Temp & Self-Attention"
+    },
+    {
+      "id": "htmlCssLivePlayground",
+      "category": "ai_code",
+      "title": "15. Live HTML/CSS/JS Sandbox, Box Model & Flexbox"
+    },
+    {
+      "id": "pythonTraceLab",
+      "category": "ai_code",
+      "title": "16. Live Python Interpreter, Tracer, Binary & Big-O"
+    },
+    {
+      "id": "abstractShapesLab",
+      "category": "humanities_shapes",
+      "title": "17. Abstract Shapes: Rotate, 3×3 Matrix & Cube Nets"
+    },
+    {
+      "id": "physicsLawsPlayground",
+      "category": "physics",
+      "title": "18. Physics Laws: Kepler Orbit, Pendulum & Snell Optics"
+    },
+    {
+      "id": "phHistoryCivicsLab",
+      "category": "humanities_shapes",
+      "title": "19. PH History Timeline & 1987 3-Branch Civics"
+    },
+    {
+      "id": "filipinoWikaLab",
+      "category": "humanities_shapes",
+      "title": "20. Filipino 4-Way Diin & Wastong Gamit Studio"
+    },
+    {
+      "id": "opticsConcaveConvexLab",
+      "category": "physics",
+      "title": "21. Convex & Concave: Mirrors, Lenses & f''(x) Lab"
+    },
+    {
+      "id": "grammarWritingLab",
+      "category": "humanities_shapes",
+      "title": "22. Sentence Surgeon, Grammar & Argument Fallacy Lab"
+    },
+    {
+      "id": "careerLifeWellnessLab",
+      "category": "humanities_shapes",
+      "title": "23. Money (50/30/20 & MP2), EQ Flow & FITT Zones"
+    },
+    {
+      "id": "earthSpaceEconLab",
+      "category": "physics",
+      "title": "24. Earth Tilt/Moon, Plates/Quakes & Supply–Demand"
+    },
+    {
+      "id": "dsaAlgoVisualizerLab",
+      "category": "ai_code",
+      "title": "25. DSA Visualizer: Sorting, BFS/DFS/Dijkstra & Hash Map"
+    },
+    {
+      "id": "sqlDatabaseLab",
+      "category": "ai_code",
+      "title": "26. Live SQL Database Workbench & B-Tree Index Lab"
+    },
+    {
+      "id": "backendSystemTerminalLab",
+      "category": "ai_code",
+      "title": "27. Git Commit DAG, JS Event Loop & REST / JWT / Cache"
+    },
+    {
+      "id": "examMechPerceptualLab",
+      "category": "physics",
+      "title": "28. Exam Lab: DOST Pulleys/Gears, Work Rate & UPCAT/NMAT"
+    }
+  ],
+  "gymModes": [
+    "even-prime",
+    "mult",
+    "div",
+    "roots",
+    "arith",
+    "neg",
+    "alg",
+    "frac-pct",
+    "trig-log",
+    "deriv",
+    "physics-blitz",
+    "chem-blitz",
+    "bio-blitz",
+    "phys2-em-blitz",
+    "chem2-thermo-kinetics",
+    "bio2-biotech-evo",
+    "wica-career-blitz",
+    "ph-history-blitz",
+    "filipino-wika-blitz",
+    "abstract-shapes-blitz",
+    "ai-ml-blitz",
+    "web-html-css-blitz",
+    "python-tech-blitz",
+    "earth-blitz",
+    "econ-blitz",
+    "phil-blitz",
+    "dsa-bigo-blitz",
+    "sql-backend-blitz",
+    "js-ts-async-blitz",
+    "dost-mech-sci-blitz",
+    "cse-civics-series-blitz",
+    "nmat-psych-perceptual-blitz"
+  ],
+  "tutorPresets": [
+    "auto",
+    "dost_sei_scholar",
+    "upcat_big4_prep",
+    "cse_pro_passer",
+    "nmat_med_track",
+    "bootdev_backend_quest",
+    "earth_nmat_science",
+    "econ_phil_thinker",
+    "ai_coding_bootcamp",
+    "ph_cet_humanities",
+    "physics_laws_mastery",
+    "polymath_explorer",
+    "shs_grade12_finals",
+    "life_career_ready",
+    "grade12_rescue",
+    "mult_autopilot",
+    "college_stem",
+    "science_trifecta",
+    "cet_full_exam"
+  ]
+}

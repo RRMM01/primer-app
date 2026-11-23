@@ -1,0 +1,58 @@
+{
+  "name": "Primer Studio — First-Principles Learning OS",
+  "short_name": "Primer",
+  "description": "Offline-first polymath learning workspace: 222 interactive lessons, 28 live playgrounds, Code Studio, Show-Your-Work Derivation Studio, 2D Skill Constellation, My Vault SM-2 decks, and 10 timed PH competitive exam simulators.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#050507",
+  "theme_color": "#050507",
+  "categories": ["education", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "./primer-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "./primer-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./primer-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Exam Mode CBT",
+      "short_name": "Exams",
+      "description": "Timed DOST, UPCAT, CSE & NMAT mock simulations",
+      "url": "./index.html?tab=exam"
+    },
+    {
+      "name": "Work Studio",
+      "short_name": "Work",
+      "description": "Step-by-step Math, Physics & Chemistry derivations",
+      "url": "./index.html?tab=work"
+    },
+    {
+      "name": "Skill Constellation",
+      "short_name": "Map",
+      "description": "Interactive 2D prerequisite knowledge graph",
+      "url": "./index.html?tab=constellation"
+    },
+    {
+      "name": "My Vault",
+      "short_name": "Vault",
+      "description": "Personal notes, bookmarks & SM-2 flashcard decks",
+      "url": "./index.html?tab=myvault"
+    }
+  ]
+}
