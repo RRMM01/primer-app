@@ -1,6 +1,6 @@
 // Primer Studio Offline-First Service Worker
 // Cache version is auto-stamped by verify_and_bundle.mjs
-const CACHE_NAME = "primer-studio-v3.0.0-79108ea";
+const CACHE_NAME = "primer-studio-v3.1.0-086c98f";
 
 const CORE_ASSETS = [
   "./",
@@ -56,20 +56,17 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
-  // Strip cache-busting query params when looking up local core assets
+  // Network-first for live local/PWA freshness, falling back to offline cache seamlessly
   const cleanUrl = url.pathname;
   event.respondWith(
-    caches.match(req, { ignoreSearch: true }).then((cached) => {
-      const networkFetch = fetch(req)
-        .then((resp) => {
-          if (resp && resp.status === 200 && resp.type === "basic") {
-            const copy = resp.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(cleanUrl, copy)).catch(() => {});
-          }
-          return resp;
-        })
-        .catch(() => cached);
-      return cached || networkFetch;
-    })
+    fetch(req)
+      .then((resp) => {
+        if (resp && resp.status === 200 && resp.type === "basic") {
+          const copy = resp.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(cleanUrl, copy)).catch(() => {});
+        }
+        return resp;
+      })
+      .catch(() => caches.match(req, { ignoreSearch: true }))
   );
 });

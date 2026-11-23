@@ -3343,12 +3343,19 @@
       return true;
     });
 
+    const missedCount = (grade.totalWrong || 0) + (grade.totalBlank || 0);
+
     container.innerHTML = `
       <div class="ml-ex-res-top">
         <div class="ml-ex-res-nav">
           <button type="button" class="ml-btn-mini" id="ml-ex-res-hub">← Exam Mode Hub</button>
           <button type="button" class="ml-btn-mini" id="ml-ex-res-retake">↻ New ${escapeHtml(exam.shortName)} Mock</button>
           <button type="button" class="ml-btn-mini" id="ml-ex-res-print">🖨️ Print Score Report (PDF)</button>
+          ${missedCount > 0 && root.PRIMER_MY_VAULT ? (
+            res.savedVaultDeckId
+              ? `<button type="button" class="ml-btn-mini active" id="ml-ex-res-open-vault">✓ Saved to My Vault (${res.savedVaultAdded > 0 ? `+${res.savedVaultAdded} new` : "synced"}) · Study Deck →</button>`
+              : `<button type="button" class="ml-btn-mini" id="ml-ex-res-save-vault">🗂️ Save ${missedCount} Missed → My Vault Deck</button>`
+          ) : ""}
         </div>
 
         <section class="ml-ex-verdict-card tone-${grade.verdictTone}">
@@ -3487,6 +3494,27 @@
       printRepBtn.addEventListener("click", () => {
         if (hooks && hooks.onTap) hooks.onTap();
         root.PRIMER_WHITEBOARD.printExamScoreReport(exam, grade, nodeMap);
+      });
+    }
+
+    const saveVaultBtn = document.getElementById("ml-ex-res-save-vault");
+    if (saveVaultBtn && root.PRIMER_MY_VAULT) {
+      saveVaultBtn.addEventListener("click", () => {
+        if (hooks && hooks.onTap) hooks.onTap();
+        const saved = root.PRIMER_MY_VAULT.upsertExamMissedDeck(state, exam, grade);
+        if (saved && saved.deck) {
+          res.savedVaultDeckId = saved.deck.id;
+          res.savedVaultAdded = saved.addedCount;
+          if (hooks && hooks.onSave) hooks.onSave();
+          renderResultsDashboard(container, state, DATA, hooks);
+        }
+      });
+    }
+
+    const openVaultBtn = document.getElementById("ml-ex-res-open-vault");
+    if (openVaultBtn && res.savedVaultDeckId) {
+      openVaultBtn.addEventListener("click", () => {
+        if (hooks && hooks.onOpenVaultDeck) hooks.onOpenVaultDeck(res.savedVaultDeckId);
       });
     }
 

@@ -87,7 +87,10 @@
     userBookmarks: [],
     userNotes: {},
     userDecks: [],
-    derivationsSolved: {}
+    derivationsSolved: {},
+    dailyChecklist: {},
+    focusLog: {},
+    focusMinutesTotal: 0
   };
 
   let storageAvailable = (function () {
@@ -138,6 +141,9 @@
       if (!merged.userNotes || typeof merged.userNotes !== "object") merged.userNotes = {};
       if (!Array.isArray(merged.userDecks)) merged.userDecks = [];
       if (!merged.derivationsSolved || typeof merged.derivationsSolved !== "object") merged.derivationsSolved = {};
+      if (!merged.dailyChecklist || typeof merged.dailyChecklist !== "object") merged.dailyChecklist = {};
+      if (!merged.focusLog || typeof merged.focusLog !== "object") merged.focusLog = {};
+      if (typeof merged.focusMinutesTotal !== "number") merged.focusMinutesTotal = 0;
       return merged;
     } catch (_e) {
       return Object.assign({}, defaultState);
@@ -289,6 +295,184 @@
       state.lastStudiedDate = today;
       state.streak = state.dailyStreak;
     }
+  }
+
+  function markDailyStep(stepKey) {
+    if (!stepKey) return;
+    const today = getTodayIso();
+    if (!state.dailyChecklist || typeof state.dailyChecklist !== "object") state.dailyChecklist = {};
+    if (!state.dailyChecklist[today] || typeof state.dailyChecklist[today] !== "object") {
+      state.dailyChecklist[today] = {};
+    }
+    state.dailyChecklist[today][stepKey] = true;
+    // Keep only the last 14 days so localStorage and sync links stay compact
+    const keys = Object.keys(state.dailyChecklist).sort();
+    while (keys.length > 14) {
+      delete state.dailyChecklist[keys.shift()];
+    }
+  }
+
+  // ==================== PERSISTENT FOCUS TIMER (POMODORO) ====================
+  const focusTimer = {
+    presetMin: 25,
+    isBreak: false,
+    remainingSec: 25 * 60,
+    running: false,
+    intervalId: null,
+    doneNotice: ""
+  };
+
+  function formatFocusMMSS(sec) {
+    const s = Math.max(0, Math.floor(sec || 0));
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return `${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}`;
+  }
+
+  function updateFocusDomDisplays() {
+    const formatted = formatFocusMMSS(focusTimer.remainingSec);
+    const sideTime = document.getElementById("ml-focus-time-side");
+    if (sideTime) sideTime.textContent = formatted;
+    const topTime = document.getElementById("ml-focus-time-top");
+    if (topTime) topTime.textContent = formatted;
+  }
+
+  function stopFocusInterval() {
+    if (focusTimer.intervalId) {
+      clearInterval(focusTimer.intervalId);
+      focusTimer.intervalId = null;
+    }
+    focusTimer.running = false;
+  }
+
+  function setFocusPreset(minutes, isBreak) {
+    stopFocusInterval();
+    focusTimer.presetMin = minutes;
+    focusTimer.isBreak = !!isBreak;
+    focusTimer.remainingSec = minutes * 60;
+    focusTimer.doneNotice = "";
+    renderTopBar();
+    renderNavTabs();
+  }
+
+  function toggleFocusTimer() {
+    if (focusTimer.running) {
+      stopFocusInterval();
+      renderTopBar();
+      renderNavTabs();
+      return;
+    }
+    if (focusTimer.remainingSec <= 0) {
+      focusTimer.remainingSec = focusTimer.presetMin * 60;
+    }
+    focusTimer.doneNotice = "";
+    focusTimer.running = true;
+    focusTimer.intervalId = setInterval(() => {
+      if (!focusTimer.running) return;
+      focusTimer.remainingSec = Math.max(0, focusTimer.remainingSec - 1);
+      updateFocusDomDisplays();
+      if (focusTimer.remainingSec <= 0) {
+        stopFocusInterval();
+        const today = getTodayIso();
+        if (!focusTimer.isBreak) {
+          if (!state.focusLog || typeof state.focusLog !== "object") state.focusLog = {};
+          state.focusLog[today] = (state.focusLog[today] || 0) + 1;
+          state.focusMinutesTotal = (state.focusMinutesTotal || 0) + focusTimer.presetMin;
+          state.xp += Math.max(10, Math.round(focusTimer.presetMin * 0.8));
+          recordStudyActivity(2);
+          saveState();
+          focusTimer.doneNotice = `✓ ${focusTimer.presetMin}m focus complete! Take a 5m break.`;
+        } else {
+          focusTimer.doneNotice = "✓ Break finished — ready for your next block.";
+        }
+        AudioFX.playLevelUp();
+        renderTopBar();
+        renderNavTabs();
+      }
+    }, 1000);
+    renderTopBar();
+    renderNavTabs();
+  }
+
+  function pickGymModeForWorld(worldId) {
+    const map = {
+      nursery: "arith",
+      elementary: "mult",
+      junior: "alg",
+      senior: "trig-log",
+      college: "deriv",
+      physics: "physics-blitz",
+      chemistry: "chem-blitz",
+      biology: "bio-blitz",
+      "verbal-logic": "cse-civics-series-blitz",
+      wica: "wica-career-blitz",
+      persdev: "wica-career-blitz",
+      wellness: "wica-career-blitz",
+      ph_history: "ph-history-blitz",
+      filipino: "filipino-wika-blitz",
+      abstract_shapes: "abstract-shapes-blitz",
+      ai_ml: "ai-ml-blitz",
+      web_coding: "web-html-css-blitz",
+      python_tech: "python-tech-blitz",
+      earth_space: "earth-blitz",
+      econ_finance: "econ-blitz",
+      philosophy_logic: "phil-blitz",
+      dsa_mastery: "dsa-bigo-blitz",
+      backend_sql_dev: "sql-backend-blitz",
+      js_ts_architecture: "js-ts-async-blitz",
+      exam_mastery: "dost-mech-sci-blitz"
+    };
+    return map[worldId] || "alg";
+  }
+
+  function buildDailySessionPlan(curState, recNode, dueSrsCount) {
+    const s = curState || state;
+    const today = getTodayIso();
+    const checks = (s.dailyChecklist && s.dailyChecklist[today]) || {};
+    const vaultSum = MY_VAULT ? MY_VAULT.getVaultSummary(s) : { dueCount: 0, cardCount: 0 };
+    const mistakeLen = (s.mistakes || []).length;
+    const rec = recNode || getRecommendedNode();
+
+    // Step 1: Recall Warmup
+    let recallTitle = "Quick Recall Warmup";
+    let recallMeta = "Open Memorize Vault to lock key facts";
+    let recallAction = "memorize";
+    if (vaultSum.dueCount > 0) {
+      recallTitle = `Review ${vaultSum.dueCount} Due Vault Card${vaultSum.dueCount === 1 ? "" : "s"}`;
+      recallMeta = "SM-2 spaced repetition in My Vault";
+      recallAction = "vault_due";
+    } else if (dueSrsCount > 0) {
+      recallTitle = `Refresh ${dueSrsCount} Due Skill${dueSrsCount === 1 ? "" : "s"}`;
+      recallMeta = "Smart Tutor SM-2 decay shield";
+      recallAction = "srs";
+    } else if (mistakeLen > 0) {
+      recallTitle = `Patch ${mistakeLen} Logged Mistake${mistakeLen === 1 ? "" : "s"}`;
+      recallMeta = "Clear your mistake repair queue";
+      recallAction = "mistakes";
+    }
+
+    // Step 2: Deep Learn or Work Studio derivation
+    const workProbs = WORK_STUDIO && Array.isArray(WORK_STUDIO.PROBLEMS) ? WORK_STUDIO.PROBLEMS : [];
+    const nextWork = workProbs.find((p) => !(s.derivationsSolved && s.derivationsSolved[p.id])) || workProbs[0] || null;
+    const learnTitle = rec ? rec.title : "Next Skill Lesson";
+    const learnMeta = nextWork
+      ? `Tutorial + quiz · or derive "${nextWork.title}" in Work Studio`
+      : "Plain-English visual tutorial + practice";
+
+    // Step 3: 45s Speed Sprint
+    const sprintModeId = pickGymModeForWorld(rec ? rec.worldId : "junior");
+    const gymDef = MEM && Array.isArray(MEM.GYM_MODES) ? MEM.GYM_MODES.find((g) => g.id === sprintModeId) : null;
+    const sprintTitle = gymDef ? `45s Sprint: ${gymDef.title}` : "45s Speed Gym Warm-Down";
+    const sprintMeta = "Lock speed & recall fluency";
+
+    const steps = [
+      { key: "recall", label: "1. Recall Warmup", title: recallTitle, meta: recallMeta, action: recallAction, done: !!checks.recall },
+      { key: "learn", label: "2. Deep Focus", title: learnTitle, meta: learnMeta, action: "lesson", payload: rec ? rec.id : null, done: !!checks.learn },
+      { key: "sprint", label: "3. Speed Sprint", title: sprintTitle, meta: sprintMeta, action: "sprint", payload: sprintModeId, done: !!checks.sprint }
+    ];
+    const doneCount = steps.filter((st) => st.done).length;
+    const nextStep = steps.find((st) => !st.done) || steps[1];
+    return { today, steps, doneCount, total: steps.length, nextStep };
   }
 
   function renderQuickPadHtml(prefix) {
@@ -601,6 +785,13 @@
       </div>
 
       <div class="ml-topbar-right">
+        ${focusTimer.running || focusTimer.remainingSec < focusTimer.presetMin * 60 ? `
+          <button type="button" id="ml-top-focus-pill" class="ml-top-focus-pill ${focusTimer.running ? "running" : "paused"} ${focusTimer.isBreak ? "is-break" : ""}" title="Click to ${focusTimer.running ? "pause" : "resume"} Focus Timer">
+            <span class="ml-focus-dot" aria-hidden="true"></span>
+            <span class="ml-focus-mode-lbl">${focusTimer.isBreak ? "Break" : "Focus"}</span>
+            <strong id="ml-focus-time-top">${formatFocusMMSS(focusTimer.remainingSec)}</strong>
+          </button>
+        ` : ""}
         <div class="ml-metrics-capsule" role="group" aria-label="Study metrics">
           <div class="ml-metric-item streak" title="Daily Study Streak${state.streakFreezes ? ` (${state.streakFreezes} Freeze ready)` : ""}">
             <span class="ml-metric-ico">${UI_ICONS.flame}</span>
@@ -639,6 +830,14 @@
         state.activeTab = "path";
         saveState();
         renderApp();
+      });
+    }
+
+    const topFocusPill = document.getElementById("ml-top-focus-pill");
+    if (topFocusPill) {
+      topFocusPill.addEventListener("click", () => {
+        AudioFX.playTap();
+        toggleFocusTimer();
       });
     }
 
@@ -762,7 +961,29 @@
     }
 
     if (foot) {
+      const todayIso = getTodayIso();
+      const focusToday = (state.focusLog && state.focusLog[todayIso]) || 0;
       foot.innerHTML = `
+        <div class="ml-focus-widget ${focusTimer.running ? "running" : ""}" aria-label="Focus Timer">
+          <div class="ml-focus-head">
+            <span class="ml-focus-title">${focusTimer.isBreak ? "Break Timer" : "Focus Timer"}</span>
+            <strong id="ml-focus-time-side" class="ml-focus-clock">${formatFocusMMSS(focusTimer.remainingSec)}</strong>
+          </div>
+          <div class="ml-focus-presets">
+            ${[
+              { m: 15, brk: false, lbl: "15m" },
+              { m: 25, brk: false, lbl: "25m" },
+              { m: 50, brk: false, lbl: "50m" },
+              { m: 5, brk: true, lbl: "5m Brk" }
+            ].map((p) => `<button type="button" class="ml-focus-chip ${focusTimer.presetMin === p.m && focusTimer.isBreak === p.brk ? "active" : ""}" data-focus-min="${p.m}" data-focus-brk="${p.brk ? "1" : "0"}">${p.lbl}</button>`).join("")}
+          </div>
+          <div class="ml-focus-actions">
+            <button type="button" id="ml-focus-toggle-btn" class="ml-focus-go-btn">${focusTimer.running ? "Pause" : focusTimer.remainingSec < focusTimer.presetMin * 60 ? "Resume" : "Start"}</button>
+            <button type="button" id="ml-focus-reset-btn" class="ml-focus-rst-btn" title="Reset timer">↺</button>
+            <span class="ml-focus-count" title="Completed focus blocks today">${focusToday}✓</span>
+          </div>
+          ${focusTimer.doneNotice ? `<div class="ml-focus-done-msg">${escapeHtml(focusTimer.doneNotice)}</div>` : ""}
+        </div>
         <div class="ml-side-meta">
           <span>Mastered</span>
           <strong>${stats.masteredCount} / ${stats.totalNodes}</strong>
@@ -840,6 +1061,27 @@
         verBtn.addEventListener("click", () => {
           AudioFX.playTap();
           openChangelogModal();
+        });
+      }
+
+      foot.querySelectorAll("[data-focus-min]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          AudioFX.playTap();
+          setFocusPreset(parseInt(btn.dataset.focusMin, 10) || 25, btn.dataset.focusBrk === "1");
+        });
+      });
+      const focusToggle = document.getElementById("ml-focus-toggle-btn");
+      if (focusToggle) {
+        focusToggle.addEventListener("click", () => {
+          AudioFX.playTap();
+          toggleFocusTimer();
+        });
+      }
+      const focusReset = document.getElementById("ml-focus-reset-btn");
+      if (focusReset) {
+        focusReset.addEventListener("click", () => {
+          AudioFX.playTap();
+          setFocusPreset(focusTimer.presetMin, focusTimer.isBreak);
         });
       }
     }
@@ -1044,6 +1286,44 @@
         </div>
       </section>
     `;
+
+    const dailyPlan = buildDailySessionPlan(state, rec, dueCount);
+    const dailyPct = Math.round((dailyPlan.doneCount / dailyPlan.total) * 100);
+    if (showSubjectOverview) {
+      html += `
+        <section class="ml-daily-session-card" aria-label="Today's study session">
+          <div class="ml-daily-head">
+            <div>
+              <div class="ml-bento-eyebrow">TODAY'S 15-MINUTE SESSION · ${dailyPlan.doneCount}/${dailyPlan.total} DONE</div>
+              <h3 class="ml-daily-title">${dailyPlan.doneCount === dailyPlan.total ? "Daily loop complete — solid momentum." : "One clear path: recall, learn, and lock speed."}</h3>
+            </div>
+            <div class="ml-daily-cta-grp">
+              <button type="button" class="ml-btn-primary" id="ml-daily-next-cta" data-daily-action="${escapeHtml(dailyPlan.nextStep.action)}" data-daily-payload="${escapeHtml(dailyPlan.nextStep.payload || "")}">
+                <span>${dailyPlan.doneCount === dailyPlan.total ? "Bonus Practice" : `Start ${dailyPlan.nextStep.label.split(". ")[1]}`}</span>
+                ${UI_ICONS.arrowRight}
+              </button>
+              <button type="button" class="ml-btn-mini" id="ml-daily-open-work" title="Practice step-by-step derivations">Work Studio →</button>
+            </div>
+          </div>
+          <div class="ml-progress-track ml-daily-track">
+            <div class="ml-progress-fill" style="width:${Math.max(dailyPct > 0 ? 6 : 0, dailyPct)}%"></div>
+          </div>
+          <div class="ml-daily-steps">
+            ${dailyPlan.steps.map((st) => `
+              <button type="button" class="ml-daily-step ${st.done ? "is-done" : ""}" data-daily-action="${escapeHtml(st.action)}" data-daily-payload="${escapeHtml(st.payload || "")}">
+                <span class="ml-daily-check" aria-hidden="true">${st.done ? "✓" : "○"}</span>
+                <span class="ml-daily-step-body">
+                  <span class="ml-daily-step-kicker">${escapeHtml(st.label)}</span>
+                  <strong>${fmtMath(st.title)}</strong>
+                  <span class="ml-daily-step-meta">${escapeHtml(st.meta)}</span>
+                </span>
+                <span class="ml-daily-go" aria-hidden="true">→</span>
+              </button>
+            `).join("")}
+          </div>
+        </section>
+      `;
+    }
 
     if (showGuide) {
       html += `
@@ -1544,6 +1824,47 @@
         WHITEBOARD.printMistakesSheet(state.mistakes || [], nodeMap);
       });
     }
+
+    function launchDailyAction(action, payload) {
+      AudioFX.playTap();
+      if (action === "vault_due" && MY_VAULT) {
+        MY_VAULT.openFirstDueDeck(state);
+        state.activeTab = "myvault";
+        saveState();
+        renderApp();
+      } else if (action === "srs") {
+        startSrsReviewSession();
+      } else if (action === "mistakes") {
+        startMistakeRepairSession();
+      } else if (action === "memorize") {
+        state.activeTab = "memorize";
+        saveState();
+        renderApp();
+      } else if (action === "lesson" && payload) {
+        startNodeSession(payload, "lesson");
+      } else if (action === "sprint") {
+        pendingExternalSprint = { modeId: payload || "alg" };
+        state.activeTab = "gym";
+        saveState();
+        renderApp();
+      }
+    }
+
+    main.querySelectorAll("[data-daily-action]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        launchDailyAction(btn.dataset.dailyAction, btn.dataset.dailyPayload);
+      });
+    });
+
+    const dailyWorkBtn = document.getElementById("ml-daily-open-work");
+    if (dailyWorkBtn) {
+      dailyWorkBtn.addEventListener("click", () => {
+        AudioFX.playTap();
+        state.activeTab = "work";
+        saveState();
+        renderApp();
+      });
+    }
   }
 
   function executeTutorAction(actionType, payload) {
@@ -1706,6 +2027,8 @@
         const gemGain = Math.max(5, Math.floor(score / 2) + 5);
         state.xp += xpGain;
         state.gems += gemGain;
+        markDailyStep("sprint");
+        recordStudyActivity(1);
         evaluateBadges();
         saveState();
         renderTopBar();
@@ -2446,10 +2769,256 @@
     return parsed;
   }
 
-  function applyImportedState(parsed) {
-    state = Object.assign({}, defaultState, parsed);
+  function bytesToBase64Url(bytes) {
+    let bin = "";
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return window.btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  }
+
+  function base64UrlToBytes(b64url) {
+    let b64 = String(b64url || "").replace(/-/g, "+").replace(/_/g, "/");
+    while (b64.length % 4) b64 += "=";
+    const bin = window.atob(b64);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  async function compressSavePayload(obj) {
+    const json = JSON.stringify(obj);
+    if (typeof CompressionStream === "function" && typeof TextEncoder === "function") {
+      try {
+        const stream = new Blob([new TextEncoder().encode(json)]).stream().pipeThrough(new CompressionStream("gzip"));
+        const buf = await new Response(stream).arrayBuffer();
+        return "p1z." + bytesToBase64Url(new Uint8Array(buf));
+      } catch (_e) {}
+    }
+    return encodeSaveCode(obj);
+  }
+
+  async function decompressSavePayload(rawInput) {
+    let txt = String(rawInput || "").trim();
+    if (!txt) throw new Error("Empty backup or sync link.");
+    const hashIdx = txt.indexOf("#primer-sync=");
+    if (hashIdx >= 0) {
+      txt = txt.slice(hashIdx + "#primer-sync=".length).trim();
+    } else if (txt.startsWith("primer-sync=")) {
+      txt = txt.slice("primer-sync=".length).trim();
+    }
+    if (txt.startsWith("p1z.")) {
+      if (typeof DecompressionStream !== "function") {
+        throw new Error("This browser does not support gzip sync links — use a .json backup file instead.");
+      }
+      const bytes = base64UrlToBytes(txt.slice(4));
+      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+      const json = await new Response(stream).text();
+      const parsed = JSON.parse(json);
+      if (!parsed || typeof parsed !== "object") throw new Error("Invalid compressed sync payload.");
+      return parsed;
+    }
+    return decodeSaveCode(txt);
+  }
+
+  function mergeNumericMapMax(a, b) {
+    const out = Object.assign({}, a || {});
+    for (const [k, v] of Object.entries(b || {})) {
+      const nv = Number(v) || 0;
+      out[k] = Math.max(Number(out[k]) || 0, nv);
+    }
+    return out;
+  }
+
+  function mergeTruthyMap(a, b) {
+    const out = Object.assign({}, a || {});
+    for (const [k, v] of Object.entries(b || {})) {
+      if (v && !out[k]) out[k] = v;
+      else if (v && typeof v === "object" && out[k] && typeof out[k] === "object") {
+        const ta = Number(out[k].solvedAt || out[k].updatedAt || 0);
+        const tb = Number(v.solvedAt || v.updatedAt || 0);
+        if (tb >= ta) out[k] = Object.assign({}, out[k], v);
+      }
+    }
+    return out;
+  }
+
+  function mergeUniqueStrings(a, b) {
+    const set = new Set();
+    const out = [];
+    for (const item of [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])]) {
+      if (typeof item === "string" && !set.has(item)) {
+        set.add(item);
+        out.push(item);
+      }
+    }
+    return out;
+  }
+
+  function mergeImportedState(baseState, incomingState) {
+    const base = Object.assign({}, defaultState, baseState || {});
+    const inc = incomingState && typeof incomingState === "object" ? incomingState : {};
+    const merged = Object.assign({}, base);
+
+    merged.xp = Math.max(Number(base.xp) || 0, Number(inc.xp) || 0);
+    merged.gems = Math.max(Number(base.gems) || 0, Number(inc.gems) || 0);
+    merged.dailyStreak = Math.max(Number(base.dailyStreak) || 1, Number(inc.dailyStreak) || 1);
+    merged.streak = Math.max(Number(base.streak) || 1, Number(inc.streak) || 1, merged.dailyStreak);
+    merged.streakFreezes = Math.max(Number(base.streakFreezes) || 0, Number(inc.streakFreezes) || 0);
+    merged.bestCombo = Math.max(Number(base.bestCombo) || 0, Number(inc.bestCombo) || 0);
+    merged.resolvedMistakesCount = Math.max(Number(base.resolvedMistakesCount) || 0, Number(inc.resolvedMistakesCount) || 0);
+    merged.focusMinutesTotal = Math.max(Number(base.focusMinutesTotal) || 0, Number(inc.focusMinutesTotal) || 0);
+
+    if (inc.lastStudiedDate && (!base.lastStudiedDate || String(inc.lastStudiedDate) > String(base.lastStudiedDate))) {
+      merged.lastStudiedDate = inc.lastStudiedDate;
+    }
+
+    merged.studyLog = mergeNumericMapMax(base.studyLog, inc.studyLog);
+    merged.focusLog = mergeNumericMapMax(base.focusLog, inc.focusLog);
+    merged.nodeMastery = mergeNumericMapMax(base.nodeMastery, inc.nodeMastery);
+    merged.multMastered = mergeNumericMapMax(base.multMastered, inc.multMastered);
+    merged.gymBest = mergeNumericMapMax(base.gymBest, inc.gymBest);
+
+    merged.trapBusted = mergeTruthyMap(base.trapBusted, inc.trapBusted);
+    merged.synthSolved = mergeTruthyMap(base.synthSolved, inc.synthSolved);
+    merged.derivationsSolved = mergeTruthyMap(base.derivationsSolved, inc.derivationsSolved);
+    merged.forgeSolved = mergeTruthyMap(base.forgeSolved, inc.forgeSolved);
+
+    // Daily checklist union per date
+    const mergedDaily = {};
+    for (const src of [base.dailyChecklist, inc.dailyChecklist]) {
+      if (!src || typeof src !== "object") continue;
+      for (const [day, obj] of Object.entries(src)) {
+        if (!obj || typeof obj !== "object") continue;
+        mergedDaily[day] = Object.assign({}, mergedDaily[day] || {}, {
+          recall: Boolean((mergedDaily[day] && mergedDaily[day].recall) || obj.recall),
+          learn: Boolean((mergedDaily[day] && mergedDaily[day].learn) || obj.learn),
+          sprint: Boolean((mergedDaily[day] && mergedDaily[day].sprint) || obj.sprint)
+        });
+      }
+    }
+    merged.dailyChecklist = mergedDaily;
+
+    // Code Studio drafts: keep non-empty, prefer longer/non-blank if one side missing
+    const mergedCode = Object.assign({}, base.forgeCode || {});
+    for (const [k, v] of Object.entries(inc.forgeCode || {})) {
+      if (typeof v === "string" && v.trim() && (!mergedCode[k] || !String(mergedCode[k]).trim())) {
+        mergedCode[k] = v;
+      }
+    }
+    merged.forgeCode = mergedCode;
+
+    merged.badges = mergeUniqueStrings(base.badges, inc.badges);
+    merged.ownedThemes = mergeUniqueStrings(base.ownedThemes, inc.ownedThemes);
+    merged.ownedAccessories = mergeUniqueStrings(base.ownedAccessories, inc.ownedAccessories);
+    merged.userBookmarks = mergeUniqueStrings(base.userBookmarks, inc.userBookmarks);
+
+    // Notes: keep newest updatedAt per key
+    const notes = Object.assign({}, base.userNotes || {});
+    for (const [k, v] of Object.entries(inc.userNotes || {})) {
+      if (!v || typeof v !== "object") continue;
+      const cur = notes[k];
+      if (!cur || (Number(v.updatedAt) || 0) > (Number(cur.updatedAt) || 0) || ((Number(v.updatedAt) || 0) === (Number(cur.updatedAt) || 0) && String(v.text || "").length > String(cur.text || "").length)) {
+        notes[k] = Object.assign({}, v);
+      }
+    }
+    merged.userNotes = notes;
+
+    // Decks & SM-2 cards: union by deck id, merge cards by id (prefer higher reps / later dueAt)
+    const deckMap = new Map();
+    for (const d of (Array.isArray(base.userDecks) ? base.userDecks : [])) {
+      if (d && d.id) deckMap.set(d.id, Object.assign({}, d, { cards: Array.isArray(d.cards) ? d.cards.map((c) => Object.assign({}, c)) : [] }));
+    }
+    for (const d of (Array.isArray(inc.userDecks) ? inc.userDecks : [])) {
+      if (!d || !d.id) continue;
+      if (!deckMap.has(d.id)) {
+        deckMap.set(d.id, Object.assign({}, d, { cards: Array.isArray(d.cards) ? d.cards.map((c) => Object.assign({}, c)) : [] }));
+      } else {
+        const target = deckMap.get(d.id);
+        const cardMap = new Map(target.cards.map((c) => [c.id, c]));
+        const frontSet = new Set(target.cards.map((c) => String(c.front || "").trim().toLowerCase()));
+        for (const c of (Array.isArray(d.cards) ? d.cards : [])) {
+          if (!c) continue;
+          if (c.id && cardMap.has(c.id)) {
+            const ex = cardMap.get(c.id);
+            if ((Number(c.reps) || 0) > (Number(ex.reps) || 0) || ((Number(c.reps) || 0) === (Number(ex.reps) || 0) && (Number(c.dueAt) || 0) > (Number(ex.dueAt) || 0))) {
+              cardMap.set(c.id, Object.assign({}, c));
+            }
+          } else {
+            const fk = String(c.front || "").trim().toLowerCase();
+            if (!fk || !frontSet.has(fk)) {
+              if (fk) frontSet.add(fk);
+              cardMap.set(c.id || `m_${cardMap.size}`, Object.assign({}, c));
+            }
+          }
+        }
+        target.cards = Array.from(cardMap.values());
+      }
+    }
+    merged.userDecks = Array.from(deckMap.values());
+
+    // Exam history: dedupe by id or finishedAt + examId
+    const exMap = new Map();
+    for (const h of [...(Array.isArray(base.examHistory) ? base.examHistory : []), ...(Array.isArray(inc.examHistory) ? inc.examHistory : [])]) {
+      if (!h) continue;
+      const key = h.id || `${h.examId || ""}_${h.finishedAt || h.date || ""}_${h.rawPct || ""}`;
+      if (!exMap.has(key)) exMap.set(key, h);
+    }
+    merged.examHistory = Array.from(exMap.values()).sort((x, y) => (Number(y.finishedAt) || 0) - (Number(x.finishedAt) || 0)).slice(0, 60);
+
+    // Mistakes: dedupe by nodeId + prompt
+    const misMap = new Map();
+    for (const m of [...(Array.isArray(base.mistakes) ? base.mistakes : []), ...(Array.isArray(inc.mistakes) ? inc.mistakes : [])]) {
+      if (!m) continue;
+      const key = `${m.nodeId || ""}::${m.q && m.q.prompt ? m.q.prompt : m.prompt || ""}`;
+      if (!misMap.has(key)) misMap.set(key, m);
+    }
+    merged.mistakes = Array.from(misMap.values()).slice(0, 80);
+
+    // Smart Tutor telemetry skills merge
+    if (base.telemetry || inc.telemetry) {
+      const bt = base.telemetry || {};
+      const it = inc.telemetry || {};
+      const skills = Object.assign({}, bt.skills || {});
+      for (const [sid, sk] of Object.entries(it.skills || {})) {
+        const cur = skills[sid];
+        if (!cur || (Number(sk.lastSeen) || 0) > (Number(cur.lastSeen) || 0) || (Number(sk.attempts) || 0) > (Number(cur.attempts) || 0)) {
+          skills[sid] = Object.assign({}, sk);
+        }
+      }
+      merged.telemetry = Object.assign({}, bt, it, {
+        eloRating: Math.max(Number(bt.eloRating) || 1000, Number(it.eloRating) || 1000),
+        skills
+      });
+    }
+
+    return merged;
+  }
+
+  function applyImportedState(parsed, mode) {
+    if (mode === "merge") {
+      state = mergeImportedState(state, parsed);
+    } else {
+      state = Object.assign({}, defaultState, parsed);
+    }
     if (TUTOR) TUTOR.ensureTelemetry(state);
+    applyThemeClass();
     saveState();
+  }
+
+  function summarizeProfile(obj) {
+    const o = obj || {};
+    const mastered = Object.values(o.nodeMastery || {}).filter((v) => v >= 1).length;
+    const decks = Array.isArray(o.userDecks) ? o.userDecks.length : 0;
+    const notes = o.userNotes && typeof o.userNotes === "object" ? Object.keys(o.userNotes).length : 0;
+    const exams = Array.isArray(o.examHistory) ? o.examHistory.length : 0;
+    const work = o.derivationsSolved && typeof o.derivationsSolved === "object" ? Object.keys(o.derivationsSolved).length : 0;
+    return {
+      xp: Number(o.xp) || 0,
+      mastered,
+      decks,
+      notes,
+      exams,
+      work
+    };
   }
 
   function renderBackupModal(modal) {
@@ -2457,28 +3026,46 @@
     const multDone = Object.values(state.multMastered || {}).filter((v) => v >= 2).length;
     const eloNow = state.telemetry && state.telemetry.eloRating ? state.telemetry.eloRating : 1000;
     const stats = getOverallStats();
+    const pendingImport = session.pendingImport || null;
+    const incSum = pendingImport ? summarizeProfile(pendingImport) : null;
 
     modal.innerHTML = `
       <div class="ml-modal-shell">
         <div class="ml-modal-top">
           <button type="button" class="ml-close-btn" id="ml-modal-close">✕</button>
-          <div class="ml-brief-pill">💾 Progress Export, Import & Portable Save Code</div>
+          <div class="ml-brief-pill">💾 Local Backup &amp; Offline Device Sync</div>
         </div>
 
         <div class="ml-backup-box">
           ${!storageAvailable ? `
             <div class="ml-trap-feedback nope" style="display:block; margin-bottom:12px;">
-              <strong>⚠️ Browser LocalStorage is blocked or Private/Incognito here!</strong> Download a JSON backup or copy your Save Code below before closing this tab.
+              <strong>⚠️ Browser LocalStorage is blocked or Private/Incognito here!</strong> Download a JSON backup or copy your Sync Link before closing this tab.
             </div>
           ` : ""}
 
           <div class="ml-easy-box" style="margin-bottom:14px;">
-            <strong>Current Profile Snapshot:</strong> ${state.xp} XP • ${stats.masteredCount}/${stats.totalNodes} Skills • ${multDone}/78 Unique × Facts • ${eloNow} Elo • ${(state.userDecks || []).length} Decks • ${Object.keys(state.userNotes || {}).length} Notes<br />
-            <span style="font-size:12px; color:var(--ml-ink-muted);">Running <strong>Primer Studio v${escapeHtml(BUILD.version)}</strong> (${escapeHtml(BUILD.codename)}) · Build <code>#${escapeHtml(BUILD.buildHash || "dev")}</code> · ${BUILD.runtime === "standalone" ? "Standalone HTML" : "Workspace Files"}</span>
+            <strong>This Device:</strong> ${state.xp} XP • ${stats.masteredCount}/${stats.totalNodes} Skills • ${multDone}/78 × Facts • ${eloNow} Elo • ${(state.userDecks || []).length} Decks • ${Object.keys(state.userNotes || {}).length} Notes • ${(state.examHistory || []).length} Exams<br />
+            <span style="font-size:12px; color:var(--ml-ink-muted);">Running <strong>Primer Studio v${escapeHtml(BUILD.version)}</strong> (${escapeHtml(BUILD.codename)}) · Build <code>#${escapeHtml(BUILD.buildHash || "dev")}</code> · 100% Offline &amp; Local</span>
           </div>
 
-          <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
-            <button type="button" class="ml-btn-primary" id="ml-bk-download">📥 Download .json Backup File</button>
+          ${pendingImport ? `
+            <div class="ml-sync-preview-card">
+              <div class="ml-bento-eyebrow">FILE / LINK READY TO IMPORT</div>
+              <div class="ml-sync-compare-row">
+                <div><strong>This Device:</strong> ${state.xp} XP · ${stats.masteredCount} skills · ${(state.userDecks || []).length} decks · ${Object.keys(state.userNotes || {}).length} notes</div>
+                <div><strong>Incoming:</strong> ${incSum.xp} XP · ${incSum.mastered} skills · ${incSum.decks} decks · ${incSum.notes} notes · ${incSum.exams} exams</div>
+              </div>
+              <div class="ml-sync-preview-actions">
+                <button type="button" class="ml-btn-primary" id="ml-bk-pending-merge">✨ Smart Merge (Keep Both Devices)</button>
+                <button type="button" class="ml-btn-danger" id="ml-bk-pending-replace">♻️ Replace Local With Incoming</button>
+                <button type="button" class="ml-btn-mini" id="ml-bk-pending-cancel">Cancel</button>
+              </div>
+            </div>
+          ` : ""}
+
+          <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
+            <button type="button" class="ml-btn-primary" id="ml-bk-synclink">🔗 Copy Instant Sync Link</button>
+            <button type="button" class="ml-btn-secondary" id="ml-bk-download">📥 Download .json</button>
             <label class="ml-btn-secondary" style="cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
               📤 Import .json File
               <input type="file" id="ml-bk-file" accept=".json,application/json" style="display:none;" />
@@ -2486,14 +3073,19 @@
             <button type="button" class="ml-btn-secondary" id="ml-bk-copy">📋 Copy Save Code</button>
           </div>
 
-          <div class="ml-micro-label" style="margin-bottom:6px;">Portable Save Code (Copy to switch phones/browsers, OR paste saved code below to restore):</div>
-          <textarea id="ml-bk-textarea" class="ml-search-input" rows="5" style="width:100%; min-width:0; font-family:monospace; font-size:12px; padding:10px;">${escapeHtml(code)}</textarea>
+          <div class="ml-sync-lan-tip">
+            <strong>Home Wi-Fi Phone Sync (Zero Accounts):</strong> Run <code>./launch_primer.sh --lan</code> on your PC, open the LAN URL on your phone, then send yourself an <strong>Instant Sync Link</strong> (or <code>.json</code> file) and choose <strong>Smart Merge</strong> so neither device loses progress.
+          </div>
+
+          <div class="ml-micro-label" style="margin:12px 0 6px;">Portable Save Code or Sync Link (paste from another device below):</div>
+          <textarea id="ml-bk-textarea" class="ml-search-input" rows="4" style="width:100%; min-width:0; font-family:monospace; font-size:12px; padding:10px;">${escapeHtml(session.compactCode || code)}</textarea>
 
           <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-top:12px;">
-            <div style="font-size:13px;">${session.statusMsg ? escapeHtml(session.statusMsg) : "Paste a previous Save Code / JSON above and click Restore."}</div>
+            <div style="font-size:13px;">${session.statusMsg ? escapeHtml(session.statusMsg) : "Smart Merge combines skills, decks, notes &amp; streaks from both devices safely."}</div>
             <div style="display:flex; gap:8px; flex-wrap:wrap;">
-              <button type="button" class="ml-btn-secondary" id="ml-bk-reset">${session.confirmReset ? "⚠️ Click Again to Confirm FULL Reset" : "🗑️ Reset Progress"}</button>
-              <button type="button" class="ml-btn-danger" id="ml-bk-restore">♻️ Restore From Code</button>
+              <button type="button" class="ml-btn-secondary" id="ml-bk-reset">${session.confirmReset ? "⚠️ Click Again to Confirm FULL Reset" : "🗑️ Reset"}</button>
+              <button type="button" class="ml-btn-primary" id="ml-bk-merge">✨ Smart Merge</button>
+              <button type="button" class="ml-btn-danger" id="ml-bk-restore">♻️ Replace</button>
             </div>
           </div>
         </div>
@@ -2501,6 +3093,52 @@
     `;
 
     document.getElementById("ml-modal-close").addEventListener("click", closeSession);
+
+    const pendingMergeBtn = document.getElementById("ml-bk-pending-merge");
+    if (pendingMergeBtn && pendingImport) {
+      pendingMergeBtn.addEventListener("click", () => {
+        applyImportedState(pendingImport, "merge");
+        AudioFX.playLevelUp();
+        closeSession();
+      });
+    }
+    const pendingReplaceBtn = document.getElementById("ml-bk-pending-replace");
+    if (pendingReplaceBtn && pendingImport) {
+      pendingReplaceBtn.addEventListener("click", () => {
+        applyImportedState(pendingImport, "replace");
+        AudioFX.playLevelUp();
+        closeSession();
+      });
+    }
+    const pendingCancelBtn = document.getElementById("ml-bk-pending-cancel");
+    if (pendingCancelBtn) {
+      pendingCancelBtn.addEventListener("click", () => {
+        session.pendingImport = null;
+        session.statusMsg = "Import cancelled.";
+        renderBackupModal(modal);
+      });
+    }
+
+    document.getElementById("ml-bk-synclink").addEventListener("click", async () => {
+      AudioFX.playTap();
+      try {
+        const packed = await compressSavePayload(state);
+        const baseUrl = window.location.protocol === "file:"
+          ? window.location.href.split("#")[0]
+          : `${window.location.origin}${window.location.pathname}`;
+        const syncUrl = `${baseUrl}#primer-sync=${packed}`;
+        session.compactCode = packed;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(syncUrl).catch(() => {});
+        }
+        AudioFX.playCorrect();
+        session.statusMsg = `✅ Copied compressed Sync Link (${packed.length} chars)! Open it on your phone/other browser to Smart Merge.`;
+        renderBackupModal(modal);
+      } catch (err) {
+        session.statusMsg = "⚠️ Could not build Sync Link: " + err.message;
+        renderBackupModal(modal);
+      }
+    });
 
     document.getElementById("ml-bk-download").addEventListener("click", () => {
       AudioFX.playTap();
@@ -2522,16 +3160,19 @@
       }
     });
 
-    document.getElementById("ml-bk-copy").addEventListener("click", () => {
+    document.getElementById("ml-bk-copy").addEventListener("click", async () => {
+      const packed = await compressSavePayload(state).catch(() => code);
+      session.compactCode = packed;
       const ta = document.getElementById("ml-bk-textarea");
+      if (ta) ta.value = packed;
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(code).catch(() => {});
+        navigator.clipboard.writeText(packed).catch(() => {});
       } else if (ta) {
         ta.select();
         try { document.execCommand("copy"); } catch (_e) {}
       }
       AudioFX.playCorrect();
-      session.statusMsg = "✅ Copied Save Code to clipboard! Paste it anywhere to keep it safe.";
+      session.statusMsg = `✅ Copied compact Save Code (${packed.length} chars) to clipboard!`;
       renderBackupModal(modal);
     });
 
@@ -2539,11 +3180,13 @@
       const file = ev.target.files && ev.target.files[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = () => {
+      reader.onload = async () => {
         try {
-          applyImportedState(decodeSaveCode(reader.result));
-          AudioFX.playLevelUp();
-          closeSession();
+          const parsed = await decompressSavePayload(reader.result);
+          session.pendingImport = parsed;
+          session.statusMsg = `Loaded "${file.name}" — choose Smart Merge (keep both) or Replace above.`;
+          AudioFX.playCorrect();
+          renderBackupModal(modal);
         } catch (err) {
           session.statusMsg = "❌ Could not parse file: " + err.message;
           renderBackupModal(modal);
@@ -2560,7 +3203,7 @@
         renderBackupModal(modal);
         return;
       }
-      state = Object.assign({}, defaultState, { studyLog: {}, nodeMastery: {}, multMastered: {}, trapBusted: {}, synthSolved: {}, mistakes: [], gymBest: {}, badges: [], ownedThemes: ["noir"], ownedAccessories: ["none"], userBookmarks: [], userNotes: {}, userDecks: [], derivationsSolved: {}, examHistory: [], forgeSolved: {}, forgeCode: {} });
+      state = Object.assign({}, defaultState, { studyLog: {}, nodeMastery: {}, multMastered: {}, trapBusted: {}, synthSolved: {}, mistakes: [], gymBest: {}, badges: [], ownedThemes: ["noir"], ownedAccessories: ["none"], userBookmarks: [], userNotes: {}, userDecks: [], derivationsSolved: {}, examHistory: [], forgeSolved: {}, forgeCode: {}, dailyChecklist: {}, focusLog: {}, focusMinutesTotal: 0 });
       if (TUTOR) TUTOR.ensureTelemetry(state);
       applyThemeClass();
       saveState();
@@ -2568,18 +3211,125 @@
       closeSession();
     });
 
-    document.getElementById("ml-bk-restore").addEventListener("click", () => {
+    document.getElementById("ml-bk-merge").addEventListener("click", async () => {
       const ta = document.getElementById("ml-bk-textarea");
       try {
-        applyImportedState(decodeSaveCode(ta ? ta.value : ""));
+        const parsed = await decompressSavePayload(ta ? ta.value : "");
+        applyImportedState(parsed, "merge");
         AudioFX.playLevelUp();
         closeSession();
       } catch (err) {
         AudioFX.playWrong();
-        session.statusMsg = "❌ Invalid Save Code / JSON: " + err.message;
+        session.statusMsg = "❌ Invalid Save Code / Sync Link: " + err.message;
         renderBackupModal(modal);
       }
     });
+
+    document.getElementById("ml-bk-restore").addEventListener("click", async () => {
+      const ta = document.getElementById("ml-bk-textarea");
+      try {
+        const parsed = await decompressSavePayload(ta ? ta.value : "");
+        applyImportedState(parsed, "replace");
+        AudioFX.playLevelUp();
+        closeSession();
+      } catch (err) {
+        AudioFX.playWrong();
+        session.statusMsg = "❌ Invalid Save Code / Sync Link: " + err.message;
+        renderBackupModal(modal);
+      }
+    });
+  }
+
+  function renderSyncIncomingModal(modal) {
+    const incoming = session && session.incomingState ? session.incomingState : null;
+    if (!incoming) {
+      closeSession();
+      return;
+    }
+    const loc = summarizeProfile(state);
+    const inc = summarizeProfile(incoming);
+    const previewMerged = summarizeProfile(mergeImportedState(state, incoming));
+
+    modal.innerHTML = `
+      <div class="ml-modal-shell">
+        <div class="ml-modal-top">
+          <button type="button" class="ml-close-btn" id="ml-modal-close">✕</button>
+          <div class="ml-brief-pill">🔗 Incoming Local Sync Link</div>
+        </div>
+        <div class="ml-backup-box">
+          <h3 style="margin:0 0 8px;">Sync Progress From Your Other Device</h3>
+          <p class="ml-viz-sub" style="margin:0 0 14px;">Everything stays 100% local in your browser. Choose <strong>Smart Merge</strong> to keep the best progress, notes &amp; decks from both devices.</p>
+
+          <div class="ml-sync-grid">
+            <div class="ml-sync-col">
+              <div class="ml-bento-eyebrow">THIS DEVICE</div>
+              <ul>
+                <li><strong>${loc.xp}</strong> XP</li>
+                <li><strong>${loc.mastered}</strong> Skills mastered</li>
+                <li><strong>${loc.decks}</strong> Vault decks · <strong>${loc.notes}</strong> notes</li>
+                <li><strong>${loc.exams}</strong> Exam runs · <strong>${loc.work}</strong> proofs</li>
+              </ul>
+            </div>
+            <div class="ml-sync-col">
+              <div class="ml-bento-eyebrow">INCOMING LINK</div>
+              <ul>
+                <li><strong>${inc.xp}</strong> XP</li>
+                <li><strong>${inc.mastered}</strong> Skills mastered</li>
+                <li><strong>${inc.decks}</strong> Vault decks · <strong>${inc.notes}</strong> notes</li>
+                <li><strong>${inc.exams}</strong> Exam runs · <strong>${inc.work}</strong> proofs</li>
+              </ul>
+            </div>
+            <div class="ml-sync-col is-merged">
+              <div class="ml-bento-eyebrow">AFTER SMART MERGE</div>
+              <ul>
+                <li><strong>${previewMerged.xp}</strong> XP</li>
+                <li><strong>${previewMerged.mastered}</strong> Skills mastered</li>
+                <li><strong>${previewMerged.decks}</strong> Vault decks · <strong>${previewMerged.notes}</strong> notes</li>
+                <li><strong>${previewMerged.exams}</strong> Exam runs · <strong>${previewMerged.work}</strong> proofs</li>
+              </ul>
+            </div>
+          </div>
+
+          <div style="display:flex; flex-wrap:wrap; gap:10px; justify-content:flex-end; margin-top:16px;">
+            <button type="button" class="ml-btn-secondary" id="ml-sync-cancel">Dismiss</button>
+            <button type="button" class="ml-btn-danger" id="ml-sync-replace">♻️ Replace Local</button>
+            <button type="button" class="ml-btn-primary" id="ml-sync-merge">✨ Smart Merge (Recommended)</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.getElementById("ml-modal-close").addEventListener("click", closeSession);
+    document.getElementById("ml-sync-cancel").addEventListener("click", closeSession);
+    document.getElementById("ml-sync-merge").addEventListener("click", () => {
+      applyImportedState(incoming, "merge");
+      AudioFX.playLevelUp();
+      launchConfetti();
+      closeSession();
+    });
+    document.getElementById("ml-sync-replace").addEventListener("click", () => {
+      applyImportedState(incoming, "replace");
+      AudioFX.playLevelUp();
+      closeSession();
+    });
+  }
+
+  function checkIncomingSyncHash() {
+    if (typeof window === "undefined" || !window.location || !window.location.hash) return;
+    const h = window.location.hash;
+    if (!h.startsWith("#primer-sync=")) return;
+    const raw = h.slice("#primer-sync=".length);
+    try {
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState(null, "", window.location.pathname + window.location.search);
+      }
+    } catch (_e) {}
+    decompressSavePayload(raw)
+      .then((parsed) => {
+        session = { mode: "sync_incoming", phase: "sync_incoming", incomingState: parsed };
+        renderModal();
+      })
+      .catch(() => {});
   }
 
   function renderShopModal(modal) {
@@ -3430,6 +4180,7 @@
     if (session.phase === "search") renderSearchModal(modal);
     else if (session.phase === "shop") renderShopModal(modal);
     else if (session.phase === "backup") renderBackupModal(modal);
+    else if (session.phase === "sync_incoming") renderSyncIncomingModal(modal);
     else if (session.phase === "changelog") renderChangelogModal(modal);
     else if (session.phase === "prereqs") renderPrereqTreeModal(modal);
     else if (session.phase === "bf-picker") renderBruteforcePicker(modal);
@@ -3443,7 +4194,7 @@
   const modalRootEl = document.getElementById("ml-modal");
   if (modalRootEl) {
     modalRootEl.addEventListener("click", (e) => {
-      if (e.target === modalRootEl && session && ["search", "shop", "backup", "changelog", "prereqs", "bf-picker", "briefing"].includes(session.phase)) {
+      if (e.target === modalRootEl && session && ["search", "shop", "backup", "sync_incoming", "changelog", "prereqs", "bf-picker", "briefing"].includes(session.phase)) {
         closeSession();
       }
     });
@@ -4618,6 +5369,12 @@
       ? TUTOR.getNewlyUnlockedNodes(prevMastery, state.nodeMastery, DATA)
       : [];
 
+    if (session.mode === "srs" || session.mode === "mistakes") {
+      markDailyStep("recall");
+    } else if (session.mode === "lesson" || session.mode === "drill" || session.mode === "skip" || session.mode === "prereq_testout") {
+      markDailyStep("learn");
+    }
+
     evaluateBadges({ perfect: pct === 100 });
     saveState();
     renderTopBar();
@@ -5075,6 +5832,17 @@
         AudioFX.playTap();
         startNodeSession(nodeId, "lesson", true);
       },
+      onOpenVaultDeck: (deckId) => {
+        AudioFX.playTap();
+        if (MY_VAULT && MY_VAULT.openDeckStudyById) {
+          MY_VAULT.openDeckStudyById(state, deckId);
+        } else if (MY_VAULT && MY_VAULT.openDeckById) {
+          MY_VAULT.openDeckById(deckId);
+        }
+        state.activeTab = "myvault";
+        saveState();
+        renderApp();
+      },
       onExamComplete: (grade, logMistakes) => {
         AudioFX.playLevelUp();
         state.xp += Math.max(30, grade.totalCorrect * 8);
@@ -5128,6 +5896,10 @@
         state.activeTab = "myvault";
         saveState();
         renderApp();
+      },
+      onOpenMistakes: () => {
+        AudioFX.playTap();
+        startMistakeRepairSession();
       }
     });
   }
@@ -5147,6 +5919,7 @@
       },
       onSolved: (prob, firstClear) => {
         AudioFX.playLevelUp();
+        markDailyStep("learn");
         if (firstClear || prob.procedural) {
           state.xp += prob.xp || 40;
           state.gems += prob.gems || 9;
@@ -5180,6 +5953,7 @@
         if (q >= 3) AudioFX.playCorrect();
         else AudioFX.playTap();
         state.xp += q >= 3 ? 6 : 2;
+        markDailyStep("recall");
         recordStudyActivity(1);
         saveState();
         renderTopBar();
@@ -5209,9 +5983,27 @@
     else renderPathView(main);
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", renderApp);
-  } else {
+  window.PRIMER_PERSONAL = {
+    mergeImportedState,
+    encodeSaveCode,
+    decodeSaveCode,
+    compressSavePayload,
+    decompressSavePayload,
+    pickGymModeForWorld,
+    buildDailySessionPlan
+  };
+
+  function bootApp() {
     renderApp();
+    checkIncomingSyncHash();
+    if (typeof window !== "undefined" && window.addEventListener) {
+      window.addEventListener("hashchange", checkIncomingSyncHash);
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bootApp);
+  } else {
+    bootApp();
   }
 })();

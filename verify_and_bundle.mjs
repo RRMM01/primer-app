@@ -6,9 +6,20 @@ import crypto from "node:crypto";
 const dir = "/home/sibug/Math";
 
 const APP_RELEASE = {
-  version: "3.0.0",
-  codename: "Primer Studio",
+  version: "3.1.0",
+  codename: "Personal Daily Studio",
   releases: [
+    {
+      version: "3.1.0",
+      codename: "Personal Daily Studio",
+      date: "2026-11-23",
+      changes: [
+        "Launched Today's 15-Minute Session on the Main Dashboard: auto-builds a 3-step daily loop (Recall Warmup → Deep Focus / Work Studio → Matched 45s Speed Sprint) with live completion tracking and a 1-click Start Next Step button.",
+        "Added Persistent Focus Timer (Pomodoro 15m/25m/50m + 5m Break) in the sidebar footer and active topbar pill — ticks smoothly across every tab without interrupting quizzes or whiteboards and logs completed focus blocks to your study streak.",
+        "Upgraded Local Backup & Multi-Device Sync (100% offline/local, zero accounts or tokens): added lossless Smart Merge (keeps the best skills, streaks, notes, SM-2 decks & exam runs from both devices), gzip-compressed Instant Sync Links (#primer-sync=p1z...) with an Incoming Sync Preview modal, and ./launch_primer.sh --lan for instant home Wi-Fi phone access.",
+        "Closed the remediation loop across modules: 1-click 'Save Missed → My Vault Deck' on Exam Mode scorecards creates deduplicated SM-2 flashcard decks, and the 2D Skill Constellation now highlights active Mistake & Needs Review nodes with crimson halos, filter spotlight & direct Mistake Drill launch."
+      ]
+    },
     {
       version: "3.0.0",
       codename: "Primer Studio",
@@ -615,7 +626,101 @@ assert(pwaManifest.name && pwaManifest.short_name === "Primer" && Array.isArray(
 for (const reqAsset of ["sw.js", "primer-icon.svg", "primer-icon-192.png", "primer-icon-512.png", "launch_primer.sh"]) {
   assert(fs.existsSync(path.join(dir, reqAsset)), `Missing Primer asset: ${reqAsset}`);
 }
-console.log(`Verified Primer v3.0.0 Studio: ${WORK_STUDIO.PROBLEMS.length} derivations + 3 procedural generators, My Vault SM-2/5-format importer, ${constLayout.nodes.length}-node/${constLayout.edges.length}-edge 2D Constellation, Whiteboard, PWA & @media print.`);
+const launcherSrc = fs.readFileSync(path.join(dir, "launch_primer.sh"), "utf8");
+assert(launcherSrc.includes("--lan") && launcherSrc.includes("0.0.0.0"), "launch_primer.sh missing --lan Wi-Fi support");
+
+// v3.1.0 Personal Daily Studio Verification (Smart Merge, Exam→Vault Deck, Daily Session Plan)
+const appMemStore = new Map();
+const appCtx = Object.assign({}, context, {
+  window: null,
+  document: {
+    readyState: "loading",
+    addEventListener: () => {},
+    getElementById: () => null,
+    body: { classList: { remove: () => {}, add: () => {} } }
+  },
+  navigator: {},
+  location: { hash: "", origin: "http://localhost:8000", pathname: "/", protocol: "http:", href: "http://localhost:8000/" },
+  history: { replaceState: () => {} },
+  btoa: (s) => Buffer.from(String(s), "binary").toString("base64"),
+  atob: (s) => Buffer.from(String(s), "base64").toString("binary"),
+  localStorage: {
+    getItem: (k) => (appMemStore.has(k) ? appMemStore.get(k) : null),
+    setItem: (k, v) => appMemStore.set(k, String(v)),
+    removeItem: (k) => appMemStore.delete(k)
+  },
+  setInterval: () => 1,
+  clearInterval: () => {},
+  setTimeout: () => 1,
+  clearTimeout: () => {},
+  encodeURIComponent,
+  decodeURIComponent,
+  escape,
+  unescape
+});
+appCtx.window = appCtx;
+appCtx.globalThis = appCtx;
+appCtx.addEventListener = () => {};
+vm.runInNewContext(appCode, appCtx, { filename: "app.js" });
+
+const PERSONAL = appCtx.window.PRIMER_PERSONAL;
+assert(PERSONAL && typeof PERSONAL.mergeImportedState === "function", "PRIMER_PERSONAL.mergeImportedState missing");
+const roundTripCode = PERSONAL.encodeSaveCode({ xp: 123, userNotes: { a: { text: "hello" } } });
+const roundTripDec = PERSONAL.decodeSaveCode(roundTripCode);
+assert(roundTripDec.xp === 123 && roundTripDec.userNotes.a.text === "hello", "Save code encode/decode round-trip failed");
+const mergeRes = PERSONAL.mergeImportedState(
+  {
+    xp: 200,
+    dailyStreak: 4,
+    lastStudiedDate: "2026-11-22",
+    nodeMastery: { "algebra-scale": 2, "slope-lines": 1 },
+    userBookmarks: ["algebra-scale"],
+    userNotes: { "node:algebra-scale": { id: "node:algebra-scale", nodeId: "algebra-scale", title: "Algebra", text: "Old note", updatedAt: 100 } },
+    userDecks: [{ id: "deck_1", title: "Physics", cards: [{ id: "c1", front: "F=ma", back: "Newton 2nd", reps: 1, dueAt: 500 }] }],
+    dailyChecklist: { "2026-11-23": { recall: true } },
+    focusLog: { "2026-11-23": 1 }
+  },
+  {
+    xp: 350,
+    dailyStreak: 2,
+    lastStudiedDate: "2026-11-23",
+    nodeMastery: { "algebra-scale": 1, "slope-lines": 3, "limits-potholes": 2 },
+    userBookmarks: ["limits-potholes", "algebra-scale"],
+    userNotes: { "node:algebra-scale": { id: "node:algebra-scale", nodeId: "algebra-scale", title: "Algebra", text: "Newer note from phone", updatedAt: 200 } },
+    userDecks: [{ id: "deck_1", title: "Physics", cards: [{ id: "c1", front: "F=ma", back: "Newton 2nd", reps: 3, dueAt: 900 }, { id: "c2", front: "V=IR", back: "Ohm", reps: 0, dueAt: 100 }] }],
+    dailyChecklist: { "2026-11-23": { sprint: true } },
+    focusLog: { "2026-11-23": 2 }
+  }
+);
+assert(mergeRes.xp === 350 && mergeRes.dailyStreak === 4, "Smart Merge max xp/streak failed");
+assert(mergeRes.nodeMastery["algebra-scale"] === 2 && mergeRes.nodeMastery["slope-lines"] === 3 && mergeRes.nodeMastery["limits-potholes"] === 2, "Smart Merge nodeMastery max failed");
+assert(mergeRes.userBookmarks.length === 2, "Smart Merge bookmark union failed");
+assert(mergeRes.userNotes["node:algebra-scale"].text === "Newer note from phone", "Smart Merge newest note failed");
+assert(mergeRes.userDecks.length === 1 && mergeRes.userDecks[0].cards.length === 2 && mergeRes.userDecks[0].cards.find((c) => c.id === "c1").reps === 3, "Smart Merge SM-2 deck/card merge failed");
+assert(mergeRes.dailyChecklist["2026-11-23"].recall && mergeRes.dailyChecklist["2026-11-23"].sprint, "Smart Merge dailyChecklist union failed");
+assert(mergeRes.focusLog["2026-11-23"] === 2, "Smart Merge focusLog max failed");
+
+// Exam Mode → My Vault Missed Deck Verification
+const fakeVaultState = { userDecks: [], userNotes: {}, userBookmarks: [] };
+const fakeExam = { id: "dost_sei", shortName: "DOST-SEI", title: "DOST-SEI Scholarship" };
+const fakeGrade = {
+  itemReviews: [
+    { status: "wrong", sectionName: "Science", q: { prompt: "What is F?", answer: "ma", whyEasy: "Newton's 2nd law." } },
+    { status: "blank", sectionName: "Math", q: { prompt: "Derivative of x^2?", answer: "2x", whyEasy: "Power rule." } },
+    { status: "correct", sectionName: "Math", q: { prompt: "2+2?", answer: "4", whyEasy: "Addition." } }
+  ]
+};
+const v1 = MY_VAULT.upsertExamMissedDeck(fakeVaultState, fakeExam, fakeGrade);
+assert(v1.deck && v1.addedCount === 2 && v1.totalCards === 2, "upsertExamMissedDeck failed on initial insert");
+const v2 = MY_VAULT.upsertExamMissedDeck(fakeVaultState, fakeExam, fakeGrade);
+assert(v2.addedCount === 0 && v2.totalCards === 2, "upsertExamMissedDeck failed to deduplicate repeat misses");
+
+// Daily Session Plan & World→Gym Matcher Verification
+const dailyPlanTest = PERSONAL.buildDailySessionPlan({ dailyChecklist: {}, mistakes: [], userDecks: [], derivationsSolved: {} }, DATA.NODES[0], 0);
+assert(dailyPlanTest.steps.length === 3 && dailyPlanTest.nextStep, "buildDailySessionPlan did not return 3 steps");
+assert(MEM.GYM_MODES.some((g) => g.id === PERSONAL.pickGymModeForWorld("physics")), "pickGymModeForWorld returned unregistered gym mode");
+
+console.log(`Verified Primer v3.1.0 Personal Daily Studio: ${WORK_STUDIO.PROBLEMS.length} derivations + 3 procedural generators, My Vault SM-2/Exam-Missed importer, Smart Merge local sync, Daily Session + Focus Timer, ${constLayout.nodes.length}-node/${constLayout.edges.length}-edge 2D Constellation, Whiteboard, PWA & @media print.`);
 
 // 8. Check CSP, Zero :root, and ZERO Legacy Neon Hexes across all source files!
 assert(!/:root\s*\{/.test(styles), "styles.css must not declare local fallbacks on :root");

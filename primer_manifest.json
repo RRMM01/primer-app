@@ -2,10 +2,10 @@
   "generatedBy": "verify_and_bundle.mjs",
   "brand": "Primer Studio",
   "build": {
-    "version": "3.0.0",
-    "codename": "Primer Studio",
-    "buildHash": "79108ea",
-    "builtAt": "2026-11-22 18:18"
+    "version": "3.1.0",
+    "codename": "Personal Daily Studio",
+    "buildHash": "086c98f",
+    "builtAt": "2026-11-23 15:01"
   },
   "counts": {
     "worlds": 25,
@@ -27,8 +27,8 @@
   "files": [
     {
       "file": "styles.css",
-      "lines": 10836,
-      "kb": 207
+      "lines": 11202,
+      "kb": 214
     },
     {
       "file": "curriculum.js",
@@ -97,8 +97,8 @@
     },
     {
       "file": "everylingo_exam_mode.js",
-      "lines": 3577,
-      "kb": 170
+      "lines": 3605,
+      "kb": 171
     },
     {
       "file": "primer_whiteboard.js",
@@ -112,13 +112,13 @@
     },
     {
       "file": "primer_my_vault.js",
-      "lines": 1446,
-      "kb": 58
+      "lines": 1515,
+      "kb": 61
     },
     {
       "file": "primer_constellation.js",
-      "lines": 933,
-      "kb": 34
+      "lines": 971,
+      "kb": 36
     },
     {
       "file": "tutor.js",
@@ -142,22 +142,22 @@
     },
     {
       "file": "app.js",
-      "lines": 5218,
-      "kb": 219
+      "lines": 6010,
+      "kb": 254
     }
   ],
   "anchors": {
     "app": {
-      "escapeHtml": 238,
-      "renderTopBar": 584,
-      "renderPathView": 849,
-      "renderSynthesisCardHtml": 1726,
-      "renderTrapsView": 1786,
-      "renderLabView": 1981,
-      "renderCheatSheetView": 2068,
-      "renderSearchModal": 2750,
-      "renderModal": 3425,
-      "keydown": 4831
+      "escapeHtml": 244,
+      "renderTopBar": 768,
+      "renderPathView": 1091,
+      "renderSynthesisCardHtml": 2049,
+      "renderTrapsView": 2109,
+      "renderLabView": 2304,
+      "renderCheatSheetView": 2391,
+      "renderSearchModal": 3500,
+      "renderModal": 4175,
+      "keydown": 5588
     },
     "tutor": {
       "DEPENDENCY_GRAPH": 4,

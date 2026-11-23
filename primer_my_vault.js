@@ -352,6 +352,44 @@
     };
   }
 
+  function upsertExamMissedDeck(state, exam, grade) {
+    ensureVaultState(state);
+    if (!exam || !grade || !Array.isArray(grade.itemReviews)) {
+      return { deck: null, addedCount: 0, totalCards: 0 };
+    }
+    const missed = grade.itemReviews.filter((r) => r && (r.status === "wrong" || r.status === "blank") && r.q && r.q.prompt);
+    if (missed.length === 0) {
+      return { deck: null, addedCount: 0, totalCards: 0 };
+    }
+    const deckId = `exam_review_${exam.id}`;
+    let deck = state.userDecks.find((d) => d.id === deckId);
+    if (!deck) {
+      deck = {
+        id: deckId,
+        title: `Exam Review: ${exam.shortName || exam.title}`,
+        description: `Auto-captured missed & blank items from ${exam.title} mocks for SM-2 spaced repetition.`,
+        createdAt: Date.now(),
+        cards: []
+      };
+      state.userDecks.unshift(deck);
+    }
+    if (!Array.isArray(deck.cards)) deck.cards = [];
+    const seenFronts = new Set(deck.cards.map((c) => String(c.front || "").trim().toLowerCase()));
+    let addedCount = 0;
+    for (const item of missed) {
+      const front = `[${item.sectionName || exam.shortName}] ${String(item.q.prompt).trim()}`;
+      const normKey = front.toLowerCase();
+      if (seenFronts.has(normKey)) continue;
+      seenFronts.add(normKey);
+      const ans = String(item.q.answer || "").trim();
+      const why = String(item.q.whyEasy || "").trim();
+      const back = why ? `Answer: ${ans}\n\nWhy: ${why}` : `Answer: ${ans}`;
+      deck.cards.unshift(createCard(front, back));
+      addedCount++;
+    }
+    return { deck, addedCount, totalCards: deck.cards.length };
+  }
+
   // ==================== MY VAULT VIEW STATE & RENDERER ====================
   let ui = {
     subTab: "decks", // "decks" | "notes" | "bookmarks"
@@ -1439,6 +1477,37 @@ A: Article III">${escapeHtml(ui.importText)}</textarea>
       ui.activeDeckId = deckId;
       ui.deckMode = "browse";
     },
+    openDeckStudyById(state, deckId) {
+      ensureVaultState(state);
+      const deck = state.userDecks.find((d) => d.id === deckId) || state.userDecks[0];
+      ui.subTab = "decks";
+      if (!deck) {
+        ui.deckMode = "browse";
+        return false;
+      }
+      ui.activeDeckId = deck.id;
+      const now = Date.now();
+      const due = (deck.cards || []).filter((c) => (c.dueAt || 0) <= now);
+      const queue = due.length > 0 ? due.slice() : (deck.cards || []).slice();
+      if (queue.length === 0) {
+        ui.deckMode = "browse";
+        return false;
+      }
+      ui.studyQueue = queue;
+      ui.studyIdx = 0;
+      ui.studyFlipped = false;
+      ui.studyDoneCount = 0;
+      ui.deckMode = "study";
+      return true;
+    },
+    openFirstDueDeck(state) {
+      ensureVaultState(state);
+      const now = Date.now();
+      const dueDeck = state.userDecks.find((d) => (d.cards || []).some((c) => (c.dueAt || 0) <= now));
+      if (!dueDeck) return false;
+      return this.openDeckStudyById(state, dueDeck.id);
+    },
+    upsertExamMissedDeck,
     renderMyVaultView,
     handleKeydown
   };

@@ -269,9 +269,28 @@
     initializedCam: false
   };
 
+  function buildMistakeMap(state) {
+    const map = new Map();
+    const list = (state && Array.isArray(state.mistakes)) ? state.mistakes : [];
+    for (const m of list) {
+      if (!m || !m.nodeId) continue;
+      map.set(m.nodeId, (map.get(m.nodeId) || 0) + 1);
+    }
+    return map;
+  }
+
   function getSpotlightSet(filterValue, state, DATA, TUTOR) {
     if (!filterValue || filterValue === "all") return null;
     const set = new Set();
+    if (filterValue === "weak") {
+      const mMap = buildMistakeMap(state);
+      mMap.forEach((_cnt, id) => set.add(id));
+      const analysis = TUTOR && TUTOR.analyzeLearner ? TUTOR.analyzeLearner(state, DATA) : { decayingNodes: [] };
+      for (const d of (analysis.decayingNodes || [])) {
+        if (d && d.nodeId) set.add(d.nodeId);
+      }
+      return set.size > 0 ? set : null;
+    }
     if (filterValue.startsWith("world:")) {
       const wId = filterValue.slice(6);
       DATA.NODES.forEach((n) => {
@@ -301,6 +320,8 @@
     const layout = cachedLayout;
     const analysis = TUTOR && TUTOR.analyzeLearner ? TUTOR.analyzeLearner(state, DATA) : { decayingNodes: [] };
     const decayingSet = new Set((analysis.decayingNodes || []).map((d) => d.nodeId));
+    const mistakeMap = buildMistakeMap(state);
+    const weakUnionCount = new Set([...decayingSet, ...mistakeMap.keys()]).size;
     const bookmarkSet = new Set(Array.isArray(state.userBookmarks) ? state.userBookmarks : []);
     const worldMap = new Map(DATA.WORLDS.map((w) => [w.id, w]));
 
@@ -350,6 +371,7 @@
             <input type="search" id="pr-co-search" class="ml-search-input pr-co-search" placeholder="Find star (e.g. calculus, sql, rizal, pulley)..." value="${escapeHtml(ui.searchQuery)}" />
             <select id="pr-co-filter" class="ml-search-input pr-co-select" aria-label="Spotlight track or world">
               <option value="all" ${ui.filterValue === "all" ? "selected" : ""}>All 25 Worlds (${layout.nodes.length})</option>
+              ${weakUnionCount > 0 ? `<option value="weak" ${ui.filterValue === "weak" ? "selected" : ""}>Needs Review &amp; Mistakes (${weakUnionCount})</option>` : ""}
               <optgroup label="Study Goal Tracks (Highlights Full Prereq Chain)">
                 ${presetList.map((p) => `<option value="preset:${escapeHtml(p.id)}" ${ui.filterValue === "preset:" + p.id ? "selected" : ""}>${escapeHtml(p.title)}</option>`).join("")}
               </optgroup>
@@ -369,6 +391,7 @@
         <div class="pr-const-legend">
           <span><i class="pr-dot mastered"></i>Mastered (${countMastered})</span>
           <span><i class="pr-dot decay"></i>Due Review (${countDecay})</span>
+          ${mistakeMap.size > 0 ? `<span><i class="pr-dot weak"></i>Mistakes (${mistakeMap.size})</span>` : ""}
           <span><i class="pr-dot ready"></i>Unlocked Ready (${countReady})</span>
           <span><i class="pr-dot locked"></i>Locked (${countLocked})</span>
           <span><i class="pr-dot star"></i>Bookmarked (${bookmarkSet.size})</span>
@@ -475,6 +498,7 @@
               ? "Unlocked · Ready to Learn"
               : "Locked · Complete Prereqs";
 
+      const mistakeCnt = mistakeMap.get(n.id) || 0;
       inspectorEl.innerHTML = `
         <div class="pr-co-insp-card">
           <div class="pr-co-insp-top">
@@ -483,12 +507,14 @@
           </div>
           <h3 class="pr-co-insp-title">${n.icon} ${fmtMath(n.title)}</h3>
           <div class="pr-co-status-pill is-${stInfo.st}">${escapeHtml(statusLabel)}</div>
+          ${mistakeCnt > 0 ? `<div class="pr-co-status-pill is-weak">⚠ ${mistakeCnt} logged mistake${mistakeCnt === 1 ? "" : "s"} in queue</div>` : ""}
           <p class="pr-co-insp-tag">${fmtMath(n.tagline)}</p>
           <div class="pr-co-insp-cheat"><strong>Cheat Code:</strong> ${fmtMath(n.cheatCode)}</div>
 
           <div class="pr-co-insp-actions">
             <button type="button" class="ml-btn-primary" id="pr-co-open-lesson">${stInfo.st === "locked" ? "Inspect Unlock Path →" : "Open Lesson →"}</button>
             <button type="button" class="ml-btn-mini" id="pr-co-open-note">${hasNote ? "📝 View Note" : "+ Note"}</button>
+            ${mistakeCnt > 0 && hooks && hooks.onOpenMistakes ? `<button type="button" class="ml-btn-mini" id="pr-co-drill-mistakes">Drill Mistakes</button>` : ""}
           </div>
 
           <div class="pr-co-insp-sec">
@@ -549,6 +575,10 @@
       const noteBtn = document.getElementById("pr-co-open-note");
       if (noteBtn && hooks && hooks.onOpenLessonNote) {
         noteBtn.addEventListener("click", () => hooks.onOpenLessonNote(n));
+      }
+      const drillMisBtn = document.getElementById("pr-co-drill-mistakes");
+      if (drillMisBtn && hooks && hooks.onOpenMistakes) {
+        drillMisBtn.addEventListener("click", () => hooks.onOpenMistakes());
       }
       inspectorEl.querySelectorAll("[data-co-focus]").forEach((b) => {
         b.addEventListener("click", () => focusNode(b.dataset.coFocus, true));
@@ -695,6 +725,14 @@
           ctx.arc(item.x, item.y, baseRadius + 4.5, 0, Math.PI * 2);
           ctx.strokeStyle = "#eab349";
           ctx.lineWidth = 1.8;
+          ctx.stroke();
+        }
+
+        if (mistakeMap.has(item.id)) {
+          ctx.beginPath();
+          ctx.arc(item.x, item.y, baseRadius + 7.5, 0, Math.PI * 2);
+          ctx.strokeStyle = "rgba(232, 121, 121, 0.85)";
+          ctx.lineWidth = 2;
           ctx.stroke();
         }
 
