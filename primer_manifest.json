@@ -2,10 +2,10 @@
   "generatedBy": "verify_and_bundle.mjs",
   "brand": "Primer Studio",
   "build": {
-    "version": "3.0.0",
-    "codename": "Primer Studio",
-    "buildHash": "79108ea",
-    "builtAt": "2026-11-22 18:18"
+    "version": "3.1.0",
+    "codename": "Personal Sync Studio",
+    "buildHash": "4d0500c",
+    "builtAt": "2026-11-23 13:33"
   },
   "counts": {
     "worlds": 25,
@@ -27,8 +27,8 @@
   "files": [
     {
       "file": "styles.css",
-      "lines": 10836,
-      "kb": 207
+      "lines": 11190,
+      "kb": 213
     },
     {
       "file": "curriculum.js",
@@ -121,6 +121,11 @@
       "kb": 34
     },
     {
+      "file": "primer_sync.js",
+      "lines": 788,
+      "kb": 30
+    },
+    {
       "file": "tutor.js",
       "lines": 2008,
       "kb": 106
@@ -142,22 +147,22 @@
     },
     {
       "file": "app.js",
-      "lines": 5218,
-      "kb": 219
+      "lines": 5736,
+      "kb": 244
     }
   ],
   "anchors": {
     "app": {
-      "escapeHtml": 238,
-      "renderTopBar": 584,
-      "renderPathView": 849,
-      "renderSynthesisCardHtml": 1726,
-      "renderTrapsView": 1786,
-      "renderLabView": 1981,
-      "renderCheatSheetView": 2068,
-      "renderSearchModal": 2750,
-      "renderModal": 3425,
-      "keydown": 4831
+      "escapeHtml": 255,
+      "renderTopBar": 607,
+      "renderPathView": 884,
+      "renderSynthesisCardHtml": 1761,
+      "renderTrapsView": 1821,
+      "renderLabView": 2016,
+      "renderCheatSheetView": 2103,
+      "renderSearchModal": 3240,
+      "renderModal": 3915,
+      "keydown": 5322
     },
     "tutor": {
       "DEPENDENCY_GRAPH": 4,

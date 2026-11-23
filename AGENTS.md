@@ -22,6 +22,7 @@ This workspace (`/home/sibug/Math`) is **Primer Studio** (v3.0.0), a zero-depend
 - `primer_work_studio.js` — Step-by-Step "Show Your Work" Derivation Studio (24 curated Algebra/Calculus/Physics/Chemistry derivations + 3 infinite procedural generators, Guided & Typed modes, Proof Ledger).
 - `primer_my_vault.js` — Personal Study Brain: Bookmarks, Markdown+$LaTeX$ Lesson Notes, Custom SM-2 Flashcard Decks, 5-format Handout Importer (`::`, Markdown `##`, `Q:/A:`, TSV, CSV), and Auto-Quiz.
 - `primer_constellation.js` — Interactive 2D HiDPI `<canvas>` Skill Constellation Map (all 222 nodes & prerequisite edges, zoom/pan, 19 Study Track spotlights, live lineage inspector).
+- `primer_sync.js` — Personal Sync Studio (v3.1.0): Private GitHub Gist 1-Click Smart Sync (Pull + lossless Merge + Push, local-only PAT isolation, optional 12s Auto-Sync) & Compressed Instant Sync Links (`#primer-sync=gz.<base64url>`).
 - `latex_tutorial.js` — Offline LaTeX + 2D `pmatrix` + Unicode/parenthesized subscripts + backtick `` `inline code` `` formatter & 5-slide tutorial builder.
 - `visualizers.js` + `everylingo_playgrounds.js` — 28 interactive visual playgrounds (`MATHLINGO_VISUALIZERS.registry` & `.list`).
 - `tutor.js` — `DEPENDENCY_GRAPH` (100% of `DATA.NODES`), SM-2 Spaced Repetition, per-domain Elo & 19 Study Plan presets.

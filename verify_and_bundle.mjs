@@ -6,9 +6,19 @@ import crypto from "node:crypto";
 const dir = "/home/sibug/Math";
 
 const APP_RELEASE = {
-  version: "3.0.0",
-  codename: "Primer Studio",
+  version: "3.1.0",
+  codename: "Personal Sync Studio",
   releases: [
+    {
+      version: "3.1.0",
+      codename: "Personal Sync Studio",
+      date: "2026-11-23",
+      changes: [
+        "Launched Private GitHub Gist 1-Click Cloud Sync (primer_sync.js): zero-backend personal cross-device sync for laptop, phone & tablet with auto-created private Gists, lossless Smart Sync (Pull + Merge + Push), optional 12s background Auto-Sync, and strict local-only token isolation (PAT is never exported into backups, links, or Gists).",
+        "Added Instant Compressed Sync Links (#primer-sync=gz.<base64url>): native browser gzip compression shrinks full progress, notes & SM-2 decks by ~70–85% into a portable link with an automatic Incoming Sync Preview modal (choose Smart Merge or Replace Local).",
+        "Initialized clean Git repository safety net (.gitignore excluding large local scratch/handout folders) and ran a full Desktop (1440px) + Mobile (390px) real-browser QA pass across all 12 workspaces."
+      ]
+    },
     {
       version: "3.0.0",
       codename: "Primer Studio",
@@ -116,6 +126,7 @@ const whiteboardCode = fs.readFileSync(path.join(dir, "primer_whiteboard.js"), "
 const workStudioCode = fs.readFileSync(path.join(dir, "primer_work_studio.js"), "utf8");
 const myVaultCode = fs.readFileSync(path.join(dir, "primer_my_vault.js"), "utf8");
 const constellationCode = fs.readFileSync(path.join(dir, "primer_constellation.js"), "utf8");
+const syncCode = fs.readFileSync(path.join(dir, "primer_sync.js"), "utf8");
 const tutorCode = fs.readFileSync(path.join(dir, "tutor.js"), "utf8");
 const visualizersCode = fs.readFileSync(path.join(dir, "visualizers.js"), "utf8");
 const playgroundsCode = fs.readFileSync(path.join(dir, "everylingo_playgrounds.js"), "utf8");
@@ -123,7 +134,36 @@ const memorizeCode = fs.readFileSync(path.join(dir, "memorize.js"), "utf8");
 const appCode = fs.readFileSync(path.join(dir, "app.js"), "utf8");
 const styles = fs.readFileSync(path.join(dir, "styles.css"), "utf8");
 
-const context = { globalThis: {}, Math, Set, Array, String, Object, Number, Date, Map, RegExp, JSON, Error, parseInt, parseFloat, Boolean };
+const context = {
+  globalThis: {},
+  Math,
+  Set,
+  Array,
+  String,
+  Object,
+  Number,
+  Date,
+  Map,
+  RegExp,
+  JSON,
+  Error,
+  parseInt,
+  parseFloat,
+  Boolean,
+  Uint8Array,
+  Buffer,
+  TextEncoder,
+  TextDecoder,
+  CompressionStream: globalThis.CompressionStream,
+  DecompressionStream: globalThis.DecompressionStream,
+  Response: globalThis.Response,
+  encodeURIComponent,
+  decodeURIComponent,
+  escape: globalThis.escape,
+  unescape: globalThis.unescape,
+  setTimeout,
+  clearTimeout
+};
 context.globalThis = context;
 vm.runInNewContext(curriculumCode, context, { filename: "curriculum.js" });
 vm.runInNewContext(scienceCode, context, { filename: "science_curriculum.js" });
@@ -143,6 +183,7 @@ vm.runInNewContext(whiteboardCode, context, { filename: "primer_whiteboard.js" }
 vm.runInNewContext(workStudioCode, context, { filename: "primer_work_studio.js" });
 vm.runInNewContext(myVaultCode, context, { filename: "primer_my_vault.js" });
 vm.runInNewContext(constellationCode, context, { filename: "primer_constellation.js" });
+vm.runInNewContext(syncCode, context, { filename: "primer_sync.js" });
 vm.runInNewContext(tutorCode, context, { filename: "tutor.js" });
 vm.runInNewContext(visualizersCode, context, { filename: "visualizers.js" });
 vm.runInNewContext(playgroundsCode, context, { filename: "everylingo_playgrounds.js" });
@@ -160,6 +201,7 @@ const WHITEBOARD = context.PRIMER_WHITEBOARD;
 const WORK_STUDIO = context.PRIMER_WORK_STUDIO;
 const MY_VAULT = context.PRIMER_MY_VAULT;
 const CONSTELLATION = context.PRIMER_CONSTELLATION;
+const SYNC = context.PRIMER_SYNC;
 
 assert(DATA && typeof DATA === "object", "MATHLINGO_DATA missing");
 assert(LATEX && typeof LATEX.formatMath === "function" && typeof LATEX.getTutorialSlides === "function", "MATHLINGO_LATEX missing");
@@ -608,6 +650,42 @@ for (const cn of constLayout.nodes) {
   assert(Number.isFinite(cn.x) && Number.isFinite(cn.y), `Constellation layout non-finite coord on ${cn.id}`);
 }
 
+// Personal Sync Engine Verification (v3.1.0)
+assert(SYNC && typeof SYNC.mergeStates === "function" && typeof SYNC.encodeCompressedLink === "function" && typeof SYNC.decodeSyncPayload === "function", "PRIMER_SYNC missing");
+assert(SYNC.normalizeGistId("https://gist.github.com/owner/a1b2c3d4e5f6a1b2c3d4e5f6") === "a1b2c3d4e5f6a1b2c3d4e5f6", "PRIMER_SYNC.normalizeGistId URL extraction failed");
+const leakyState = { xp: 120, syncToken: "ghp_secret", githubToken: "pat_secret", pat: "x", _syncCfg: { token: "y" } };
+const sanitizedState = SYNC.sanitizeStateForExport(leakyState);
+assert(!("syncToken" in sanitizedState) && !("githubToken" in sanitizedState) && !("pat" in sanitizedState) && !("_syncCfg" in sanitizedState), "PRIMER_SYNC leaked secret key in sanitized export!");
+const mergedDemo = SYNC.mergeStates(
+  {
+    xp: 240,
+    nodeMastery: { "algebra-scale": 2, "slope-lines": 1 },
+    userBookmarks: ["algebra-scale"],
+    userNotes: { "node:algebra-scale": { id: "node:algebra-scale", text: "old note", updatedAt: 100 } },
+    userDecks: [{ id: "d1", title: "My Deck", updatedAt: 100, cards: [{ id: "c1", front: "A", back: "B", reps: 1, lastReviewed: 100 }] }],
+    examHistory: [{ id: "ex1", examId: "dost_sei", pct: 78, at: 1000 }]
+  },
+  {
+    xp: 310,
+    nodeMastery: { "algebra-scale": 1, "quadratics-symmetry": 3 },
+    userBookmarks: ["quadratics-symmetry"],
+    userNotes: { "node:algebra-scale": { id: "node:algebra-scale", text: "newer phone note", updatedAt: 500 } },
+    userDecks: [{ id: "d1", title: "My Deck", updatedAt: 200, cards: [{ id: "c1", front: "A", back: "B", reps: 3, lastReviewed: 500 }, { id: "c2", front: "C", back: "D", reps: 0 }] }],
+    examHistory: [{ id: "ex1", examId: "dost_sei", pct: 78, at: 1000 }, { id: "ex2", examId: "upcat", pct: 84, at: 2000 }]
+  },
+  { xp: 0, nodeMastery: {}, userBookmarks: [], userNotes: {}, userDecks: [], examHistory: [] }
+);
+assert(mergedDemo.xp === 310, "PRIMER_SYNC mergeStates max XP failed");
+assert(mergedDemo.nodeMastery["algebra-scale"] === 2 && mergedDemo.nodeMastery["slope-lines"] === 1 && mergedDemo.nodeMastery["quadratics-symmetry"] === 3, "PRIMER_SYNC mergeStates nodeMastery union/max failed");
+assert(mergedDemo.userBookmarks.length === 2, "PRIMER_SYNC mergeStates bookmark union failed");
+assert(mergedDemo.userNotes["node:algebra-scale"].text === "newer phone note", "PRIMER_SYNC mergeStates newest note failed");
+assert(mergedDemo.userDecks[0].cards.length === 2 && mergedDemo.userDecks[0].cards[0].reps === 3, "PRIMER_SYNC mergeStates SM-2 card merge failed");
+assert(mergedDemo.examHistory.length === 2 && mergedDemo.examHistory[0].id === "ex2", "PRIMER_SYNC mergeStates examHistory dedup/sort failed");
+const compressedLinkRes = await SYNC.encodeCompressedLink(mergedDemo, "https://example.github.io/primer/");
+assert(compressedLinkRes.url.startsWith("https://example.github.io/primer/#primer-sync="), "PRIMER_SYNC compressed link format failed");
+const roundTripped = await SYNC.decodeSyncPayload(compressedLinkRes.url);
+assert(roundTripped.state.xp === 310 && roundTripped.state.userDecks[0].cards.length === 2, "PRIMER_SYNC compressed link round-trip failed");
+
 // PWA & Print Verification
 assert(/@media\s+print/.test(styles), "styles.css missing @media print stylesheet");
 const pwaManifest = JSON.parse(fs.readFileSync(path.join(dir, "manifest.webmanifest"), "utf8"));
@@ -640,6 +718,7 @@ const allFiles = [
   ["primer_work_studio.js", workStudioCode],
   ["primer_my_vault.js", myVaultCode],
   ["primer_constellation.js", constellationCode],
+  ["primer_sync.js", syncCode],
   ["tutor.js", tutorCode],
   ["visualizers.js", visualizersCode],
   ["everylingo_playgrounds.js", playgroundsCode],
@@ -786,6 +865,9 @@ ${myVaultCode}
   <\/script>
   <script>
 ${constellationCode}
+  <\/script>
+  <script>
+${syncCode}
   <\/script>
   <script>
 ${tutorCode}

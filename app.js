@@ -13,6 +13,7 @@
   const WORK_STUDIO = window.PRIMER_WORK_STUDIO;
   const MY_VAULT = window.PRIMER_MY_VAULT;
   const CONSTELLATION = window.PRIMER_CONSTELLATION;
+  const SYNC = window.PRIMER_SYNC;
   // Expose universal Primer & legacy aliases
   window.PRIMER_DATA = DATA;
   window.EVERYLINGO_DATA = DATA;
@@ -144,12 +145,28 @@
     }
   }
 
-  function saveState() {
+  function saveState(skipAutoSync) {
     try {
-      const serialized = JSON.stringify(state);
+      const clean = SYNC ? SYNC.sanitizeStateForExport(state) : state;
+      const serialized = JSON.stringify(clean);
       window.localStorage.setItem(PRIMER_STORAGE_KEY, serialized);
       window.localStorage.setItem(PRIMARY_STORAGE_KEY, serialized);
     } catch (_e) {}
+    if (!skipAutoSync && SYNC && SYNC.scheduleAutoSync) {
+      SYNC.scheduleAutoSync(
+        () => state,
+        defaultState,
+        (merged) => {
+          state = Object.assign({}, defaultState, merged);
+          if (TUTOR) TUTOR.ensureTelemetry(state);
+          saveState(true);
+          renderTopBar();
+        },
+        () => {
+          renderTopBar();
+        }
+      );
+    }
   }
 
   // PWA Service Worker & Install Prompt (http/https workspace only; silently skipped in standalone HTML)
@@ -552,8 +569,11 @@
 
   const TAB_TITLES = {
     path: "Dashboard",
+    constellation: "Skill Constellation",
+    work: "Work Studio",
     exam: "Exam Mode",
     forge: "Code Studio",
+    myvault: "My Vault",
     tutor: "Smart Tutor",
     memorize: "Memorize Vault",
     gym: "Speed Gym & Scan",
@@ -564,10 +584,13 @@
 
   const TAB_SHORT_TITLES = {
     path: "Home",
+    constellation: "Map",
+    work: "Work",
     exam: "Exams",
-    forge: "Studio",
+    forge: "Code",
+    myvault: "Vault",
     tutor: "Tutor",
-    memorize: "Vault",
+    memorize: "Memory",
     gym: "Gym",
     lab: "Labs",
     traps: "Traps",
@@ -625,9 +648,21 @@
           <kbd class="ml-kbd-hint">⌘K</kbd>
         </button>
 
-        <button type="button" id="ml-backup-btn" class="ml-profile-btn" title="${storageAvailable ? `Mastered ${stats.masteredCount}/${stats.totalNodes} · Backup, Save Code & Reset` : "LocalStorage restricted here — open Save Code backup"}">
+        ${(() => {
+          const syncCfg = SYNC ? SYNC.loadConfig() : null;
+          const syncActive = Boolean(syncCfg && syncCfg.token && syncCfg.gistId);
+          const syncErr = Boolean(syncCfg && syncCfg.lastSyncError);
+          const syncTitle = !storageAvailable
+            ? "LocalStorage restricted here — open Save Code backup"
+            : syncActive
+            ? `Mastered ${stats.masteredCount}/${stats.totalNodes} · Cloud Gist Sync ${syncErr ? "(Error — click to inspect)" : (syncCfg.lastSyncedAt ? `active (${syncCfg.lastSyncAction || "synced"})` : "ready")}`
+            : `Mastered ${stats.masteredCount}/${stats.totalNodes} · Sync, Backup & Save Code`;
+          return `
+        <button type="button" id="ml-backup-btn" class="ml-profile-btn ${syncActive ? "has-sync" : ""}" title="${escapeHtml(syncTitle)}" aria-label="Personal Sync and Backup">
           <span class="ml-profile-avatar">${UI_ICONS.user}</span>
-        </button>
+          ${syncActive ? `<span class="pr-sync-dot ${syncErr ? "err" : "ok"}" aria-hidden="true"></span>` : ""}
+        </button>`;
+        })()}
       </div>
     `;
 
@@ -2446,29 +2481,118 @@
     return parsed;
   }
 
-  function applyImportedState(parsed) {
-    state = Object.assign({}, defaultState, parsed);
+  function applyImportedState(parsed, mode) {
+    const clean = SYNC ? SYNC.sanitizeStateForExport(parsed) : parsed;
+    if (mode === "merge" && SYNC && SYNC.mergeStates) {
+      state = Object.assign({}, defaultState, SYNC.mergeStates(state, clean, defaultState));
+    } else {
+      state = Object.assign({}, defaultState, clean);
+    }
     if (TUTOR) TUTOR.ensureTelemetry(state);
-    saveState();
+    applyThemeClass();
+    saveState(true);
+  }
+
+  function formatSyncRelativeTime(iso) {
+    if (!iso) return "Never";
+    try {
+      const diffSec = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+      if (diffSec < 60) return "just now";
+      if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+      if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+      return new Date(iso).toLocaleDateString();
+    } catch (_e) {
+      return String(iso).slice(0, 16);
+    }
+  }
+
+  function renderSyncImportModal(modal) {
+    const inc = session.incoming;
+    if (!inc || !inc.state) {
+      closeSession();
+      return;
+    }
+    const localSum = SYNC ? SYNC.summarizeState(state) : { xp: state.xp, masteredCount: getOverallStats().masteredCount, deckCount: (state.userDecks || []).length, noteCount: Object.keys(state.userNotes || {}).length };
+    const remSum = inc.summary || (SYNC ? SYNC.summarizeState(inc.state) : {});
+    const whenText = inc.updatedAt ? formatSyncRelativeTime(inc.updatedAt) : "Snapshot";
+
+    modal.innerHTML = `
+      <div class="ml-modal-shell pr-sync-shell">
+        <div class="ml-modal-top">
+          <button type="button" class="ml-close-btn" id="ml-modal-close">✕</button>
+          <div class="ml-brief-pill">🔗 Incoming Personal Sync Link</div>
+        </div>
+
+        <div class="ml-backup-box">
+          <div class="pr-sync-banner">
+            <strong>Ready to sync from ${escapeHtml(inc.deviceLabel || "Another Device")}</strong>
+            <span>${escapeHtml(whenText)} · Your local progress is untouched until you pick an action below.</span>
+          </div>
+
+          <div class="pr-sync-compare-grid">
+            <div class="pr-sync-compare-card">
+              <div class="ml-micro-label">This Device (Current)</div>
+              <div class="pr-sync-stat-row"><span>XP</span><strong>${localSum.xp}</strong></div>
+              <div class="pr-sync-stat-row"><span>Mastered Skills</span><strong>${localSum.masteredCount}</strong></div>
+              <div class="pr-sync-stat-row"><span>My Vault Decks / Notes</span><strong>${localSum.deckCount} / ${localSum.noteCount}</strong></div>
+              <div class="pr-sync-stat-row"><span>Code & Work Solved</span><strong>${(localSum.forgeCount || 0) + (localSum.derivationCount || 0)}</strong></div>
+            </div>
+            <div class="pr-sync-compare-card incoming">
+              <div class="ml-micro-label">Incoming Link</div>
+              <div class="pr-sync-stat-row"><span>XP</span><strong>${remSum.xp || 0}</strong></div>
+              <div class="pr-sync-stat-row"><span>Mastered Skills</span><strong>${remSum.masteredCount || 0}</strong></div>
+              <div class="pr-sync-stat-row"><span>My Vault Decks / Notes</span><strong>${remSum.deckCount || 0} / ${remSum.noteCount || 0}</strong></div>
+              <div class="pr-sync-stat-row"><span>Code & Work Solved</span><strong>${(remSum.forgeCount || 0) + (remSum.derivationCount || 0)}</strong></div>
+            </div>
+          </div>
+
+          <div class="pr-sync-actions-bar">
+            <button type="button" class="ml-btn-primary" id="pr-imp-merge">⚡ Smart Merge (Keep Best of Both)</button>
+            <button type="button" class="ml-btn-secondary" id="pr-imp-replace">♻️ Replace This Device</button>
+            <button type="button" class="ml-btn-secondary" id="pr-imp-cancel">Cancel</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.getElementById("ml-modal-close").addEventListener("click", closeSession);
+    document.getElementById("pr-imp-cancel").addEventListener("click", closeSession);
+    document.getElementById("pr-imp-merge").addEventListener("click", () => {
+      applyImportedState(inc.state, "merge");
+      AudioFX.playLevelUp();
+      closeSession();
+    });
+    document.getElementById("pr-imp-replace").addEventListener("click", () => {
+      applyImportedState(inc.state, "replace");
+      AudioFX.playLevelUp();
+      closeSession();
+    });
   }
 
   function renderBackupModal(modal) {
-    const code = encodeSaveCode(state);
+    const cleanState = SYNC ? SYNC.sanitizeStateForExport(state) : state;
+    const code = encodeSaveCode(cleanState);
     const multDone = Object.values(state.multMastered || {}).filter((v) => v >= 2).length;
     const eloNow = state.telemetry && state.telemetry.eloRating ? state.telemetry.eloRating : 1000;
     const stats = getOverallStats();
+    const syncCfg = SYNC ? SYNC.loadConfig() : { token: "", gistId: "", deviceLabel: "My Device", autoSync: false };
+    const hasToken = Boolean(syncCfg.token);
+    const hasGist = Boolean(syncCfg.gistId);
+    const busy = Boolean(session.syncBusy);
+    const showToken = Boolean(session.showSyncToken);
+    const syncSection = session.syncSection || "cloud"; // "cloud" | "link" | "file"
 
     modal.innerHTML = `
-      <div class="ml-modal-shell">
+      <div class="ml-modal-shell pr-sync-shell">
         <div class="ml-modal-top">
           <button type="button" class="ml-close-btn" id="ml-modal-close">✕</button>
-          <div class="ml-brief-pill">💾 Progress Export, Import & Portable Save Code</div>
+          <div class="ml-brief-pill">☁️ Personal Sync, Compressed Link & Backup</div>
         </div>
 
         <div class="ml-backup-box">
           ${!storageAvailable ? `
             <div class="ml-trap-feedback nope" style="display:block; margin-bottom:12px;">
-              <strong>⚠️ Browser LocalStorage is blocked or Private/Incognito here!</strong> Download a JSON backup or copy your Save Code below before closing this tab.
+              <strong>⚠️ Browser LocalStorage is blocked or Private/Incognito here!</strong> Download a JSON backup or copy your Sync Link below before closing this tab.
             </div>
           ` : ""}
 
@@ -2477,109 +2601,475 @@
             <span style="font-size:12px; color:var(--ml-ink-muted);">Running <strong>Primer Studio v${escapeHtml(BUILD.version)}</strong> (${escapeHtml(BUILD.codename)}) · Build <code>#${escapeHtml(BUILD.buildHash || "dev")}</code> · ${BUILD.runtime === "standalone" ? "Standalone HTML" : "Workspace Files"}</span>
           </div>
 
-          <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
-            <button type="button" class="ml-btn-primary" id="ml-bk-download">📥 Download .json Backup File</button>
-            <label class="ml-btn-secondary" style="cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
-              📤 Import .json File
-              <input type="file" id="ml-bk-file" accept=".json,application/json" style="display:none;" />
-            </label>
-            <button type="button" class="ml-btn-secondary" id="ml-bk-copy">📋 Copy Save Code</button>
+          <div class="pr-sync-tabs" role="tablist" aria-label="Sync and backup modes">
+            <button type="button" class="pr-sync-tab ${syncSection === "cloud" ? "active" : ""}" data-sync-tab="cloud">
+              ☁️ Private GitHub Gist ${hasToken && hasGist ? `<span class="pr-sync-pill-ok">Linked</span>` : ""}
+            </button>
+            <button type="button" class="pr-sync-tab ${syncSection === "link" ? "active" : ""}" data-sync-tab="link">
+              🔗 Sync Link & Code
+            </button>
+            <button type="button" class="pr-sync-tab ${syncSection === "file" ? "active" : ""}" data-sync-tab="file">
+              💾 JSON File & PWA
+            </button>
           </div>
 
-          <div class="ml-micro-label" style="margin-bottom:6px;">Portable Save Code (Copy to switch phones/browsers, OR paste saved code below to restore):</div>
-          <textarea id="ml-bk-textarea" class="ml-search-input" rows="5" style="width:100%; min-width:0; font-family:monospace; font-size:12px; padding:10px;">${escapeHtml(code)}</textarea>
+          ${session.statusMsg ? `
+            <div class="pr-sync-status ${session.statusKind || "info"}">${escapeHtml(session.statusMsg)}</div>
+          ` : ""}
 
-          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-top:12px;">
-            <div style="font-size:13px;">${session.statusMsg ? escapeHtml(session.statusMsg) : "Paste a previous Save Code / JSON above and click Restore."}</div>
-            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-              <button type="button" class="ml-btn-secondary" id="ml-bk-reset">${session.confirmReset ? "⚠️ Click Again to Confirm FULL Reset" : "🗑️ Reset Progress"}</button>
-              <button type="button" class="ml-btn-danger" id="ml-bk-restore">♻️ Restore From Code</button>
+          ${syncSection === "cloud" ? `
+            <div class="pr-sync-panel">
+              <div class="pr-sync-panel-head">
+                <div>
+                  <h3 class="pr-sync-h3">Private GitHub Gist 1-Click Sync</h3>
+                  <p class="pr-sync-sub">Zero backend, 100% private to your GitHub account. Your token stays <strong>only on this device</strong> and is never included in backups or Gists.</p>
+                </div>
+                ${syncCfg.lastSyncedAt ? `
+                  <div class="pr-sync-meta-badge">
+                    <span>${escapeHtml(syncCfg.lastSyncAction || "synced")}</span>
+                    <strong>${escapeHtml(formatSyncRelativeTime(syncCfg.lastSyncedAt))}</strong>
+                  </div>
+                ` : ""}
+              </div>
+
+              <div class="pr-sync-form-grid">
+                <label class="pr-sync-field">
+                  <span class="ml-micro-label">GitHub Personal Access Token (Gists: Read &amp; Write only)</span>
+                  <div class="pr-sync-input-row">
+                    <input type="${showToken ? "text" : "password"}" id="pr-sync-token" class="ml-search-input pr-sync-input" placeholder="github_pat_... or ghp_..." value="${escapeHtml(syncCfg.token)}" autocomplete="off" spellcheck="false" />
+                    <button type="button" class="ml-btn-mini" id="pr-sync-toggle-tok">${showToken ? "Hide" : "Show"}</button>
+                  </div>
+                </label>
+
+                <div class="pr-sync-two-col">
+                  <label class="pr-sync-field">
+                    <span class="ml-micro-label">Private Gist ID (leave blank on 1st device to auto-create)</span>
+                    <div class="pr-sync-input-row">
+                      <input type="text" id="pr-sync-gist-id" class="ml-search-input pr-sync-input" placeholder="Auto-created on first Smart Sync" value="${escapeHtml(syncCfg.gistId)}" autocomplete="off" spellcheck="false" />
+                      ${hasGist ? `<button type="button" class="ml-btn-mini" id="pr-sync-copy-gist" title="Copy Gist ID to paste on your phone">Copy ID</button>` : ""}
+                    </div>
+                  </label>
+
+                  <label class="pr-sync-field">
+                    <span class="ml-micro-label">This Device Name</span>
+                    <input type="text" id="pr-sync-device" class="ml-search-input pr-sync-input" placeholder="e.g. Linux Laptop or Phone" value="${escapeHtml(syncCfg.deviceLabel)}" maxlength="40" />
+                  </label>
+                </div>
+
+                <label class="pr-sync-check-row">
+                  <input type="checkbox" id="pr-sync-auto" ${syncCfg.autoSync ? "checked" : ""} />
+                  <span><strong>Auto-Sync on changes</strong> (quietly merges &amp; pushes 12s after you study when online)</span>
+                </label>
+              </div>
+
+              <div class="pr-sync-actions-bar">
+                <button type="button" class="ml-btn-primary" id="pr-sync-smart" ${busy ? "disabled" : ""}>${busy ? "Syncing..." : "⚡ Smart Sync (Pull + Merge + Push)"}</button>
+                <button type="button" class="ml-btn-secondary" id="pr-sync-pull" ${busy ? "disabled" : ""}>↓ Pull &amp; Merge</button>
+                <button type="button" class="ml-btn-secondary" id="pr-sync-push" ${busy ? "disabled" : ""}>↑ Force Push</button>
+                <button type="button" class="ml-btn-mini" id="pr-sync-test" ${busy ? "disabled" : ""}>✓ Test</button>
+                ${(hasToken || hasGist) ? `<button type="button" class="ml-btn-mini" id="pr-sync-clear">Forget Token</button>` : ""}
+              </div>
+
+              <details class="pr-sync-details">
+                <summary>30-second setup: How to create a Gists-only GitHub token &amp; pair your phone</summary>
+                <ol class="pr-sync-steps">
+                  <li>Open <code>github.com/settings/tokens</code> → <strong>Fine-grained tokens</strong> (or Classic token with only the <code>gist</code> scope) → enable <strong>Account permissions → Gists: Read and write</strong>.</li>
+                  <li>Paste the token above on your laptop and click <strong>⚡ Smart Sync</strong>. Primer automatically creates a <strong>Secret Gist</strong> and fills in your <strong>Gist ID</strong>.</li>
+                  <li>On your phone, open Primer Studio, paste the same token + click <strong>Copy ID</strong> for the Gist ID, then tap <strong>⚡ Smart Sync</strong>. Both devices now stay cleanly merged!</li>
+                </ol>
+              </details>
             </div>
-          </div>
+          ` : syncSection === "link" ? `
+            <div class="pr-sync-panel">
+              <h3 class="pr-sync-h3">Instant Compressed Sync Link (No Account Needed)</h3>
+              <p class="pr-sync-sub">Compresses your full progress, notes, and SM-2 decks with native <code>gzip</code> into a single link you can send to your phone (Telegram, Messenger, Notes, AirDrop).</p>
+
+              <div class="pr-sync-actions-bar" style="margin-bottom:14px;">
+                <button type="button" class="ml-btn-primary" id="pr-sync-make-link">🔗 Copy Compressed Sync Link</button>
+                <button type="button" class="ml-btn-secondary" id="ml-bk-copy">📋 Copy Legacy Save Code</button>
+              </div>
+
+              ${session.generatedSyncLink ? `
+                <div class="pr-sync-link-preview">
+                  <div class="ml-micro-label">${escapeHtml(session.generatedSyncMeta || "Compressed Sync Link ready:")}</div>
+                  <input type="text" readonly class="ml-search-input pr-sync-input" id="pr-sync-link-out" value="${escapeHtml(session.generatedSyncLink)}" />
+                </div>
+              ` : ""}
+
+              <div class="ml-micro-label" style="margin:12px 0 6px;">Paste a Sync Link (<code>#primer-sync=...</code>), Save Code, or JSON below:</div>
+              <textarea id="ml-bk-textarea" class="ml-search-input" rows="4" style="width:100%; min-width:0; font-family:monospace; font-size:12px; padding:10px;">${escapeHtml(session.restoreDraft !== undefined ? session.restoreDraft : code)}</textarea>
+
+              <div class="pr-sync-actions-bar" style="margin-top:10px;">
+                <button type="button" class="ml-btn-primary" id="pr-bk-merge">⚡ Smart Merge From Paste</button>
+                <button type="button" class="ml-btn-danger" id="ml-bk-restore">♻️ Replace Local From Paste</button>
+              </div>
+            </div>
+          ` : `
+            <div class="pr-sync-panel">
+              <h3 class="pr-sync-h3">Local JSON File Backup &amp; Phone PWA Install</h3>
+              <p class="pr-sync-sub">Export a full local snapshot (lessons, Elo, notes, bookmarks, custom SM-2 decks &amp; exam logs — never includes any GitHub token).</p>
+
+              <div class="pr-sync-actions-bar" style="margin-bottom:14px;">
+                <button type="button" class="ml-btn-primary" id="ml-bk-download">📥 Download .json Backup</button>
+                <label class="ml-btn-secondary" style="cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+                  📤 Import .json (Smart Merge)
+                  <input type="file" id="ml-bk-file" accept=".json,application/json" style="display:none;" />
+                </label>
+                <label class="ml-btn-mini" style="cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+                  ♻️ Import .json (Replace)
+                  <input type="file" id="ml-bk-file-replace" accept=".json,application/json" style="display:none;" />
+                </label>
+              </div>
+
+              <details class="pr-sync-details" open>
+                <summary>Install Primer Studio on your Phone (Free HTTPS PWA)</summary>
+                <ol class="pr-sync-steps">
+                  <li>Push this repo to a personal GitHub repo and enable <strong>Settings → Pages → Deploy from branch (main / root)</strong> — or drag-drop to <strong>Cloudflare Pages</strong>.</li>
+                  <li>Open your HTTPS URL on your phone: on <strong>Android Chrome</strong> tap <em>Install App</em>; on <strong>iPhone Safari</strong> tap <em>Share → Add to Home Screen</em>.</li>
+                  <li>Once opened once, Primer caches all 25 worlds &amp; 222 lessons offline via Service Worker — study on flights or commutes, then tap <strong>⚡ Smart Sync</strong> when back online.</li>
+                </ol>
+              </details>
+
+              <div class="pr-sync-danger-zone">
+                <div>
+                  <strong>Reset Local Device Progress</strong>
+                  <span>Wipes XP, mastery, streaks, decks &amp; notes on this browser only (does not delete your GitHub Gist).</span>
+                </div>
+                <button type="button" class="ml-btn-secondary" id="ml-bk-reset">${session.confirmReset ? "⚠️ Click Again to Confirm FULL Reset" : "🗑️ Reset Progress"}</button>
+              </div>
+            </div>
+          `}
         </div>
       </div>
     `;
 
     document.getElementById("ml-modal-close").addEventListener("click", closeSession);
 
-    document.getElementById("ml-bk-download").addEventListener("click", () => {
-      AudioFX.playTap();
-      try {
-        const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `primer_backup_${new Date().toISOString().slice(0, 10)}.json`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-        session.statusMsg = "✅ Downloaded Primer backup JSON (includes decks, notes & bookmarks)!";
+    modal.querySelectorAll("[data-sync-tab]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        AudioFX.playTap();
+        session.syncSection = btn.dataset.syncTab;
+        session.confirmReset = false;
         renderBackupModal(modal);
-      } catch (_e) {
-        session.statusMsg = "⚠️ Download blocked by viewer — use Copy Save Code instead!";
-        renderBackupModal(modal);
-      }
+      });
     });
 
-    document.getElementById("ml-bk-copy").addEventListener("click", () => {
-      const ta = document.getElementById("ml-bk-textarea");
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(code).catch(() => {});
-      } else if (ta) {
-        ta.select();
-        try { document.execCommand("copy"); } catch (_e) {}
-      }
-      AudioFX.playCorrect();
-      session.statusMsg = "✅ Copied Save Code to clipboard! Paste it anywhere to keep it safe.";
-      renderBackupModal(modal);
-    });
+    function persistCloudInputs() {
+      if (!SYNC) return syncCfg;
+      const tokEl = document.getElementById("pr-sync-token");
+      const gidEl = document.getElementById("pr-sync-gist-id");
+      const devEl = document.getElementById("pr-sync-device");
+      const autoEl = document.getElementById("pr-sync-auto");
+      return SYNC.saveConfig({
+        token: tokEl ? tokEl.value : syncCfg.token,
+        gistId: gidEl ? gidEl.value : syncCfg.gistId,
+        deviceLabel: devEl ? devEl.value : syncCfg.deviceLabel,
+        autoSync: autoEl ? autoEl.checked : syncCfg.autoSync
+      });
+    }
 
-    document.getElementById("ml-bk-file").addEventListener("change", (ev) => {
-      const file = ev.target.files && ev.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
+    // Cloud Gist Sync handlers
+    const toggleTokBtn = document.getElementById("pr-sync-toggle-tok");
+    if (toggleTokBtn) {
+      toggleTokBtn.addEventListener("click", () => {
+        persistCloudInputs();
+        session.showSyncToken = !session.showSyncToken;
+        renderBackupModal(modal);
+      });
+    }
+
+    const copyGistBtn = document.getElementById("pr-sync-copy-gist");
+    if (copyGistBtn) {
+      copyGistBtn.addEventListener("click", () => {
+        const cur = persistCloudInputs();
+        if (navigator.clipboard && navigator.clipboard.writeText && cur.gistId) {
+          navigator.clipboard.writeText(cur.gistId).catch(() => {});
+        }
+        AudioFX.playCorrect();
+        session.statusKind = "ok";
+        session.statusMsg = `✅ Copied Gist ID (${cur.gistId}) — paste this on your phone!`;
+        renderBackupModal(modal);
+      });
+    }
+
+    const autoCheck = document.getElementById("pr-sync-auto");
+    if (autoCheck) {
+      autoCheck.addEventListener("change", () => {
+        const cur = persistCloudInputs();
+        AudioFX.playTap();
+        session.statusKind = "info";
+        session.statusMsg = cur.autoSync
+          ? "⚡ Auto-Sync enabled — changes quietly merge & push 12s after studying when online."
+          : "Auto-Sync turned off — use Smart Sync manually whenever you want.";
+        renderBackupModal(modal);
+      });
+    }
+
+    const testBtn = document.getElementById("pr-sync-test");
+    if (testBtn && SYNC) {
+      testBtn.addEventListener("click", async () => {
+        const cur = persistCloudInputs();
+        session.syncBusy = true;
+        session.statusKind = "info";
+        session.statusMsg = "Testing GitHub connection...";
+        renderBackupModal(modal);
         try {
-          applyImportedState(decodeSaveCode(reader.result));
-          AudioFX.playLevelUp();
-          closeSession();
+          const info = await SYNC.testGistConnection(cur);
+          AudioFX.playCorrect();
+          session.statusKind = "ok";
+          session.statusMsg = info.gistInfo
+            ? `✅ Connected as @${info.login} · Private Gist ${info.gistInfo.id.slice(0, 8)}… verified (${info.gistInfo.isPrivate ? "Private" : "Public"}).`
+            : `✅ Connected as @${info.login}! Click ⚡ Smart Sync to auto-create your private sync Gist.`;
         } catch (err) {
-          session.statusMsg = "❌ Could not parse file: " + err.message;
+          AudioFX.playWrong();
+          session.statusKind = "err";
+          session.statusMsg = "❌ " + err.message;
+        } finally {
+          session.syncBusy = false;
+          renderTopBar();
           renderBackupModal(modal);
         }
-      };
-      reader.readAsText(file);
-    });
+      });
+    }
 
-    document.getElementById("ml-bk-reset").addEventListener("click", () => {
-      if (!session.confirmReset) {
-        AudioFX.playTap();
-        session.confirmReset = true;
-        session.statusMsg = "⚠️ Are you sure? Click 'Confirm FULL Reset' again to wipe XP, mastery, streak & telemetry.";
+    const smartBtn = document.getElementById("pr-sync-smart");
+    if (smartBtn && SYNC) {
+      smartBtn.addEventListener("click", async () => {
+        const cur = persistCloudInputs();
+        session.syncBusy = true;
+        session.statusKind = "info";
+        session.statusMsg = cur.gistId ? "Pulling remote Gist, smart-merging & pushing..." : "Creating your private Primer Studio Gist...";
         renderBackupModal(modal);
-        return;
-      }
-      state = Object.assign({}, defaultState, { studyLog: {}, nodeMastery: {}, multMastered: {}, trapBusted: {}, synthSolved: {}, mistakes: [], gymBest: {}, badges: [], ownedThemes: ["noir"], ownedAccessories: ["none"], userBookmarks: [], userNotes: {}, userDecks: [], derivationsSolved: {}, examHistory: [], forgeSolved: {}, forgeCode: {} });
-      if (TUTOR) TUTOR.ensureTelemetry(state);
-      applyThemeClass();
-      saveState();
-      AudioFX.playTap();
-      closeSession();
-    });
+        try {
+          const res = await SYNC.smartSyncWithGist(state, defaultState, cur);
+          state = Object.assign({}, defaultState, res.mergedState);
+          if (TUTOR) TUTOR.ensureTelemetry(state);
+          applyThemeClass();
+          saveState(true);
+          AudioFX.playLevelUp();
+          session.statusKind = "ok";
+          session.statusMsg = res.action === "created"
+            ? `✅ Created private Gist (${res.gistId}) and synced! Copy this Gist ID to pair your phone.`
+            : `✅ Smart Sync complete! Merged ${res.pulledFrom ? `with ${res.pulledFrom.deviceLabel}` : "local state"} and updated private Gist.`;
+        } catch (err) {
+          AudioFX.playWrong();
+          session.statusKind = "err";
+          session.statusMsg = "❌ " + err.message;
+        } finally {
+          session.syncBusy = false;
+          renderApp();
+          renderBackupModal(modal);
+        }
+      });
+    }
 
-    document.getElementById("ml-bk-restore").addEventListener("click", () => {
+    const pullBtn = document.getElementById("pr-sync-pull");
+    if (pullBtn && SYNC) {
+      pullBtn.addEventListener("click", async () => {
+        const cur = persistCloudInputs();
+        session.syncBusy = true;
+        session.statusKind = "info";
+        session.statusMsg = "Pulling from private Gist and merging...";
+        renderBackupModal(modal);
+        try {
+          const pulled = await SYNC.pullFromGist(cur);
+          applyImportedState(pulled.state, "merge");
+          SYNC.saveConfig({ lastSyncedAt: new Date().toISOString(), lastSyncAction: "pulled", lastSyncError: "" });
+          AudioFX.playLevelUp();
+          session.statusKind = "ok";
+          session.statusMsg = `✅ Pulled & merged progress from ${pulled.deviceLabel} (${pulled.summary.xp} XP · ${pulled.summary.masteredCount} skills)!`;
+        } catch (err) {
+          AudioFX.playWrong();
+          session.statusKind = "err";
+          session.statusMsg = "❌ " + err.message;
+        } finally {
+          session.syncBusy = false;
+          renderApp();
+          renderBackupModal(modal);
+        }
+      });
+    }
+
+    const pushBtn = document.getElementById("pr-sync-push");
+    if (pushBtn && SYNC) {
+      pushBtn.addEventListener("click", async () => {
+        const cur = persistCloudInputs();
+        session.syncBusy = true;
+        session.statusKind = "info";
+        session.statusMsg = "Pushing this device's snapshot to private Gist...";
+        renderBackupModal(modal);
+        try {
+          const res = await SYNC.pushToGist(state, cur);
+          AudioFX.playCorrect();
+          session.statusKind = "ok";
+          session.statusMsg = res.created
+            ? `✅ Created private Gist (${res.gistId}) and uploaded your progress!`
+            : `✅ Pushed snapshot to private Gist (${res.gistId.slice(0, 8)}…).`;
+        } catch (err) {
+          AudioFX.playWrong();
+          session.statusKind = "err";
+          session.statusMsg = "❌ " + err.message;
+        } finally {
+          session.syncBusy = false;
+          renderTopBar();
+          renderBackupModal(modal);
+        }
+      });
+    }
+
+    const clearTokBtn = document.getElementById("pr-sync-clear");
+    if (clearTokBtn && SYNC) {
+      clearTokBtn.addEventListener("click", () => {
+        SYNC.clearConfig();
+        AudioFX.playTap();
+        session.statusKind = "info";
+        session.statusMsg = "Cleared GitHub token & Gist config from this browser. Your study progress is untouched.";
+        renderTopBar();
+        renderBackupModal(modal);
+      });
+    }
+
+    // Compressed Sync Link & Save Code handlers
+    const makeLinkBtn = document.getElementById("pr-sync-make-link");
+    if (makeLinkBtn && SYNC) {
+      makeLinkBtn.addEventListener("click", async () => {
+        try {
+          const res = await SYNC.encodeCompressedLink(state);
+          session.generatedSyncLink = res.url;
+          session.generatedSyncMeta = `Compressed with ${res.codec === "gz" ? "gzip" : "base64url"} (${res.ratioPct}% smaller · ${res.tokenChars.toLocaleString()} chars) — open this link on your phone to sync:`;
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(res.url).catch(() => {});
+          }
+          AudioFX.playCorrect();
+          session.statusKind = "ok";
+          session.statusMsg = `✅ Copied compressed Sync Link (${res.ratioPct}% smaller)! Send it to your phone and open it to merge.`;
+        } catch (err) {
+          AudioFX.playWrong();
+          session.statusKind = "err";
+          session.statusMsg = "❌ Could not build sync link: " + err.message;
+        }
+        renderBackupModal(modal);
+      });
+    }
+
+    const copyBtn = document.getElementById("ml-bk-copy");
+    if (copyBtn) {
+      copyBtn.addEventListener("click", () => {
+        const ta = document.getElementById("ml-bk-textarea");
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(code).catch(() => {});
+        } else if (ta) {
+          ta.select();
+          try { document.execCommand("copy"); } catch (_e) {}
+        }
+        AudioFX.playCorrect();
+        session.statusKind = "ok";
+        session.statusMsg = "✅ Copied Save Code to clipboard! Paste it anywhere to keep it safe.";
+        renderBackupModal(modal);
+      });
+    }
+
+    async function handleTextImport(mode) {
       const ta = document.getElementById("ml-bk-textarea");
+      const raw = ta ? ta.value : "";
+      session.restoreDraft = raw;
       try {
-        applyImportedState(decodeSaveCode(ta ? ta.value : ""));
+        const decoded = SYNC && SYNC.decodeSyncPayload
+          ? await SYNC.decodeSyncPayload(raw)
+          : { state: decodeSaveCode(raw) };
+        applyImportedState(decoded.state, mode);
         AudioFX.playLevelUp();
         closeSession();
       } catch (err) {
         AudioFX.playWrong();
-        session.statusMsg = "❌ Invalid Save Code / JSON: " + err.message;
+        session.statusKind = "err";
+        session.statusMsg = "❌ Invalid Sync Link / Save Code / JSON: " + err.message;
         renderBackupModal(modal);
       }
-    });
+    }
+
+    const mergePasteBtn = document.getElementById("pr-bk-merge");
+    if (mergePasteBtn) {
+      mergePasteBtn.addEventListener("click", () => handleTextImport("merge"));
+    }
+
+    const restoreBtn = document.getElementById("ml-bk-restore");
+    if (restoreBtn) {
+      restoreBtn.addEventListener("click", () => handleTextImport("replace"));
+    }
+
+    // Local File Backup handlers
+    const dlBtn = document.getElementById("ml-bk-download");
+    if (dlBtn) {
+      dlBtn.addEventListener("click", () => {
+        AudioFX.playTap();
+        try {
+          const blob = new Blob([JSON.stringify(cleanState, null, 2)], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `primer_backup_${new Date().toISOString().slice(0, 10)}.json`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+          session.statusKind = "ok";
+          session.statusMsg = "✅ Downloaded Primer backup JSON (includes decks, notes & bookmarks; zero tokens)!";
+          renderBackupModal(modal);
+        } catch (_e) {
+          session.statusKind = "err";
+          session.statusMsg = "⚠️ Download blocked by viewer — use Sync Link or Save Code instead!";
+          renderBackupModal(modal);
+        }
+      });
+    }
+
+    function wireJsonFileInput(elId, mode) {
+      const el = document.getElementById(elId);
+      if (!el) return;
+      el.addEventListener("change", (ev) => {
+        const file = ev.target.files && ev.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async () => {
+          try {
+            const decoded = SYNC && SYNC.decodeSyncPayload
+              ? await SYNC.decodeSyncPayload(reader.result)
+              : { state: decodeSaveCode(reader.result) };
+            applyImportedState(decoded.state, mode);
+            AudioFX.playLevelUp();
+            closeSession();
+          } catch (err) {
+            session.statusKind = "err";
+            session.statusMsg = "❌ Could not parse file: " + err.message;
+            renderBackupModal(modal);
+          }
+        };
+        reader.readAsText(file);
+      });
+    }
+    wireJsonFileInput("ml-bk-file", "merge");
+    wireJsonFileInput("ml-bk-file-replace", "replace");
+
+    const resetBtn = document.getElementById("ml-bk-reset");
+    if (resetBtn) {
+      resetBtn.addEventListener("click", () => {
+        if (!session.confirmReset) {
+          AudioFX.playTap();
+          session.confirmReset = true;
+          session.statusKind = "err";
+          session.statusMsg = "⚠️ Are you sure? Click 'Confirm FULL Reset' again to wipe XP, mastery, streak & telemetry on this device.";
+          renderBackupModal(modal);
+          return;
+        }
+        state = Object.assign({}, defaultState, { studyLog: {}, nodeMastery: {}, multMastered: {}, trapBusted: {}, synthSolved: {}, mistakes: [], gymBest: {}, badges: [], ownedThemes: ["noir"], ownedAccessories: ["none"], userBookmarks: [], userNotes: {}, userDecks: [], derivationsSolved: {}, examHistory: [], forgeSolved: {}, forgeCode: {} });
+        if (TUTOR) TUTOR.ensureTelemetry(state);
+        applyThemeClass();
+        saveState(true);
+        AudioFX.playTap();
+        closeSession();
+      });
+    }
   }
 
   function renderShopModal(modal) {
@@ -3430,6 +3920,7 @@
     if (session.phase === "search") renderSearchModal(modal);
     else if (session.phase === "shop") renderShopModal(modal);
     else if (session.phase === "backup") renderBackupModal(modal);
+    else if (session.phase === "sync_import") renderSyncImportModal(modal);
     else if (session.phase === "changelog") renderChangelogModal(modal);
     else if (session.phase === "prereqs") renderPrereqTreeModal(modal);
     else if (session.phase === "bf-picker") renderBruteforcePicker(modal);
@@ -3443,7 +3934,7 @@
   const modalRootEl = document.getElementById("ml-modal");
   if (modalRootEl) {
     modalRootEl.addEventListener("click", (e) => {
-      if (e.target === modalRootEl && session && ["search", "shop", "backup", "changelog", "prereqs", "bf-picker", "briefing"].includes(session.phase)) {
+      if (e.target === modalRootEl && session && ["search", "shop", "backup", "sync_import", "changelog", "prereqs", "bf-picker", "briefing"].includes(session.phase)) {
         closeSession();
       }
     });
@@ -4843,7 +5334,7 @@
       return;
     }
 
-    if (session && (session.phase === "search" || session.phase === "shop" || session.phase === "backup" || session.phase === "bf-picker")) {
+    if (session && (session.phase === "search" || session.phase === "shop" || session.phase === "backup" || session.phase === "sync_import" || session.phase === "bf-picker")) {
       if (e.key === "Escape") {
         closeSession();
       }
@@ -5209,9 +5700,36 @@
     else renderPathView(main);
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", renderApp);
-  } else {
+  function checkIncomingHashSync() {
+    if (!SYNC || !SYNC.extractIncomingHashSync) return;
+    const incomingRaw = SYNC.extractIncomingHashSync();
+    if (!incomingRaw) return;
+    SYNC.decodeSyncPayload(incomingRaw)
+      .then((decoded) => {
+        session = { mode: "sync_import", phase: "sync_import", incoming: decoded };
+        renderModal();
+      })
+      .catch((err) => {
+        session = {
+          mode: "backup",
+          phase: "backup",
+          syncSection: "link",
+          statusKind: "err",
+          statusMsg: "❌ Could not open incoming Sync Link: " + (err && err.message ? err.message : "Corrupted link")
+        };
+        renderModal();
+      });
+  }
+
+  function bootApp() {
     renderApp();
+    checkIncomingHashSync();
+    window.addEventListener("hashchange", checkIncomingHashSync);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bootApp);
+  } else {
+    bootApp();
   }
 })();
